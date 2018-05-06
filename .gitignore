@@ -101,4 +101,4 @@ ENV/
 .mypy_cache/
 
 # Ignore pycharm settings folder
-.idead
+.idea
