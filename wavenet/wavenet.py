@@ -26,12 +26,12 @@ def reconstruct_signal(mag_spectogram, fftsize, hops, iterations):
     while i > 0:
         print(i)
         i -= 1
-        stft_reconstructed = calculate_stft(reconstructed,fftsize,hops)
+        stft_reconstructed = calculate_stft(reconstructed, fftsize, hops)
         stft_reconstructed_angle = np.angle(stft_reconstructed)
         # Replace the magnitude part of the STFT of the reconstructed signal by the given magnitude spectogram
         stft_reconstructed = mag_spectogram * np.exp(1.0j*stft_reconstructed_angle)
 
-        prev_reconstructed = reconstructed
+        #prev_reconstructed = reconstructed
         reconstructed = calculate_inverse_stft(stft_reconstructed, fftsize, hops)
 
 
@@ -67,7 +67,7 @@ def calculate_inverse_stft(spectogram,fftsize,hops):
     time_steps = spectogram.shape[0]
     len_samples = int(time_steps*hops+fftsize)
     istft = np.zeros(len_samples)
-    for n, i in enumerate(range(0, len(spectogram)-fftsize, hops)):
+    for n, i in enumerate(range(0, len(istft)-fftsize, hops)):
         istft[i:i+fftsize] += hann_window * np.real(np.fft.irfft(spectogram[n]))
     return istft
 
@@ -121,20 +121,21 @@ def save_audio(time_signal, samplerate, output_file = 'output.wav'):
     f.close()
 
 
-path = 'classical.wav'
-input_signal = load_audio(path)
-fftsize = 2048
-hops = fftsize//8
-print(max(input_signal))
-stft_input = calculate_stft(input_signal, fftsize, hops)
-
-mag_input = abs(stft_input)**2
-np.savetxt('stft_input.txt',mag_input)
-reconstructed = reconstruct_signal(mag_input, fftsize, hops, 100)
-# Scale the reconstructed signal
-max_value = np.max(abs(reconstructed))
-if max_value > 1.0:
-    reconstructed = reconstructed/max_value
-np.savetxt('reconstructed.txt',reconstructed)
-save_audio(reconstructed, 44100)
-print('Done')
+### Test procedure ###
+# path = 'C:\\Users\\Thomas\Desktop\\KTH\Period 4\\deep_learning\\project\\wavenet\\classical.wav'
+# input_signal = load_audio(path)
+# fftsize = 2048
+# hops = fftsize//8
+# print(max(input_signal))
+# stft_input = calculate_stft(input_signal, fftsize, hops)
+#
+# mag_input = abs(stft_input)**2
+#
+# reconstructed = reconstruct_signal(mag_input, fftsize, hops, 100)
+# # Scale the reconstructed signal
+# max_value = np.max(abs(reconstructed))
+# if max_value > 1.0:
+#     reconstructed = reconstructed/max_value
+#
+# save_audio(reconstructed, 44100)
+# print('Done')
