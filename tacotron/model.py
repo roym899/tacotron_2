@@ -1,14 +1,15 @@
 import tensorflow as tf
+import tacotron.utils
 
 class TTS(object):
-    def __init__(self, hparams, mode, dataset_iterator):
+    def __init__(self, hparams, mode):
         if mode == "basic":
             # embedding -> LSTM layer -> LSTM layer -> Dense
             # -----------------------    -------------------
             #         Encoder               Decoder
 
             # define the input
-            encoder_inputs = tf.placeholder(tf.int32, [1, hparams['max_sentence_length']], 'inputs')
+            self.encoder_inputs = tf.placeholder(tf.int32, [1, hparams['max_sentence_length']], 'inputs')
 
             # Embedding
             embedding_encoder = tf.get_variable(
@@ -16,7 +17,7 @@ class TTS(object):
             # Look up embedding:
             #   encoder_inputs: [max_time, batch_size]
             #   encoder_emb_inp: [max_time, batch_size, embedding_size]
-            encoder_emb_inp = tf.nn.embedding_lookup(embedding_encoder, encoder_inputs)
+            encoder_emb_inp = tf.nn.embedding_lookup(embedding_encoder, self.encoder_inputs)
 
             # Build RNN cell
             encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
@@ -25,7 +26,8 @@ class TTS(object):
             #   encoder_state: [batch_size, num_units]
             encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                                encoder_emb_inp,
-                                                               sequence_length=hparams['max_sentence_length'],
+                                                               sequence_length=[hparams['max_sentence_length']],
+                                                               dtype=tf.float32,
                                                                time_major=True)
 
             # Build RNN cell
@@ -43,8 +45,8 @@ class TTS(object):
                                                       encoder_state,
                                                       output_layer=projection_layer)
             # Dynamic decoding
-            outputs, _ = tf.contrib.seq2seq.dynamic_decode(decoder)
-            spectograms = outputs.rnn_output
+            self.outputs, _ = tf.contrib.seq2seq.dynamic_decode(decoder)
+            spectograms = self.outputs.rnn_output
 
             target_spectograms = dataset_iterator.target_spectograms
             train_loss = tf.losses.mean_squared_error(target_spectograms, spectograms)
@@ -60,9 +62,11 @@ class TTS(object):
         elif mode == "tacotron-2":
             pass
 
-
     def train(self):
         pass
 
-    def predict(self):
-        pass
+    def predict(self, text):
+        input = tacotron.utils.text_to_sequence(text)
+        training_session = tf.Session()
+        res = training_session.run(self.outputs, feed_dict={self.encoder_inputs: input})
+        print("test")
