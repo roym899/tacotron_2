@@ -1,10 +1,12 @@
 # define the basic vocabulary
-VOCAB = "ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz -?!.,;:\'"
+VOCAB = " ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-?!.,;:\'"
 
-def text_to_sequence(text):
+def text_to_sequence(text, length):
     sequence = []
-    for c in text:
+    for _ in range(length):
+        sequence.append(0)
+    for i, c in enumerate(text):
         idx = VOCAB.find(c)
         assert idx != -1
-        sequence.append(idx)
-        return sequence
+        sequence[i] = idx
+    return sequence

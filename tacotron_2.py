@@ -21,4 +21,4 @@ hparams['learning_rate'] = 0.0001
 
 improved_tacotron_2_model = TTS(hparams, "basic")
 
-TTS.predict("This course is fun.")
+improved_tacotron_2_model.predict("This course is fun.")
