@@ -1,10 +1,15 @@
 import tensorflow as tf
 import tacotron.utils
 import numpy as np
+from tacotron.RegressionHelper import RegressionHelper
 
 class TTS(object):
     def __init__(self, hparams, mode):
+        def sample_fcn(outputs):
+            return outputs
         if mode == "basic":
+
+
             # embedding -> LSTM layer -> LSTM layer -> Dense
             # -----------------------    -------------------
             #         Encoder               Decoder
@@ -35,22 +40,26 @@ class TTS(object):
 
             # Build RNN cell
             # Helper
-            # decoder_outputs = tf.placeholder(tf.float64,
-            #                                 [hparams['max_output_length'], hparams['frequency_bins']],
-            #                                 'inputs')
-            #
+            decoder_outputs = tf.placeholder(tf.float64,
+                                            [hparams['max_output_length'], hparams['frequency_bins']],
+                                            'inputs')
+
+            # Decoder
+            # self.global_step_tensor = tf.Variable(10, trainable=False, name='global_step')
+
             # helper = tf.contrib.seq2seq.TrainingHelper(decoder_outputs, [hparams['max_output_length']], time_major=True)
-            # # Decoder
-            # decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
-            # projection_layer = tf.layers.Dense(hparams['frequency_bins'], use_bias=False)
-            # decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
-            #                                           helper,
-            #                                           encoder_state,
-            #                                           output_layer=projection_layer)
+            decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
+            projection_layer = tf.layers.Dense(hparams['frequency_bins'], use_bias=False)
+            fcn = self.stop_fcn
+            helper = RegressionHelper(hparams['max_output_length'])
+            decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
+                                                      helper,
+                                                      encoder_state,
+                                                      output_layer=projection_layer)
             # # Dynamic decoding
-            # self.outputs, _ = tf.contrib.seq2seq.dynamic_decode(decoder)
+            self.outputs, _ = tf.contrib.seq2seq.dynamic_decode(decoder)
             # spectograms = self.outputs.rnn_output
-            #
+
             # target_spectograms = dataset_iterator.target_spectograms
             # train_loss = tf.losses.mean_squared_error(target_spectograms, spectograms)
             # params = tf.trainable_variables()
@@ -60,6 +69,11 @@ class TTS(object):
             # Optimization
             # optimizer = tf.train.AdamOptimizer(hparams['learning_rate'])
             # update_step = optimizer.apply_gradients((clipped_gradients, params))
+            self.session = tf.Session()
+            init = tf.global_variables_initializer()
+            self.session.run(init)
+
+
 
         elif mode == "tacotron-2":
             pass
@@ -68,10 +82,17 @@ class TTS(object):
         pass
 
     def predict(self, text):
-        init = tf.global_variables_initializer()
         input = tacotron.utils.text_to_sequence(text, self.hparams['max_sentence_length'])
-        training_session = tf.Session()
-        training_session.run(init)
-        res = training_session.run(self.encoder_outputs, feed_dict={self.encoder_inputs: np.expand_dims(input,1)})
+        res = self.session.run(self.outputs, feed_dict={self.encoder_inputs: np.expand_dims(input,1)})
         test_out = res[:,0,:]
+        # print('global_step: %s' % tf.train.global_step(self.session, self.global_step_tensor))
         print("test")
+
+
+    # TODO: return the right dimension for batch
+    def stop_fcn(self):
+        self.counter += 1
+        if self.counter >= self.hparams['max_output_length']:
+            return [True]
+        return [False]
+
