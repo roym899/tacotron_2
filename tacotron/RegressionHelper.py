@@ -8,9 +8,10 @@ class RegressionHelper(Helper):
     Helper instances are used by `BasicDecoder`.
     """
 
-    def __init__(self, batch_size, max_output_length):
-        self.max_output_length = max_output_length
+    def __init__(self, batch_size, frequency_bins, max_output_length):
+        self.frequency_bins = frequency_bins
         self._batch_size = batch_size
+        self.max_output_length = max_output_length
 
     @property
     def batch_size(self):
@@ -35,7 +36,7 @@ class RegressionHelper(Helper):
 
     def initialize(self, name=None):
         """Returns `(initial_finished, initial_inputs)`."""
-        return (tf.tile([False], [self._batch_size]), tf.zeros([self.max_output_length, self._batch_size]))
+        return (tf.tile([False], [self._batch_size]), tf.zeros([self._batch_size, self.frequency_bins]))
 
     def sample(self, time, outputs, state, name=None):
         """Returns `sample_ids`."""
