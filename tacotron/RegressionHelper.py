@@ -35,7 +35,7 @@ class RegressionHelper(Helper):
 
     def initialize(self, name=None):
         """Returns `(initial_finished, initial_inputs)`."""
-        return (False, 0)
+        return (tf.tile([False], [self._batch_size]), tf.zeros([self.max_output_length, self._batch_size]))
 
     def sample(self, time, outputs, state, name=None):
         """Returns `sample_ids`."""
@@ -43,7 +43,5 @@ class RegressionHelper(Helper):
 
     def next_inputs(self, time, outputs, state, sample_ids, name=None):
         """Returns `(finished, next_inputs, next_state)`."""
-        stop = False
-        if time > self.max_output_length:
-            stop = True
+        stop = tf.cond(time > self.max_output_length, lambda: True, lambda: False)
         return (stop, outputs, state)
