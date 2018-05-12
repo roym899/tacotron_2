@@ -17,7 +17,9 @@ class TTS(object):
             self.hparams = hparams
 
             # define the input
-            self.encoder_inputs = tf.placeholder(tf.int32, [hparams['max_sentence_length'], 1], 'inputs')
+            self.encoder_inputs = tf.placeholder(tf.int32, [hparams['max_sentence_length'], None], 'inputs')
+
+            batch_size = tf.shape(self.encoder_inputs)[1]
 
             # Embedding
             embedding_encoder = tf.get_variable(
@@ -51,7 +53,7 @@ class TTS(object):
             decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
             projection_layer = tf.layers.Dense(hparams['frequency_bins'], use_bias=False)
             fcn = self.stop_fcn
-            helper = RegressionHelper(hparams['max_output_length'])
+            helper = RegressionHelper(tf.constant(1), hparams['max_output_length'])
             decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
                                                       helper,
                                                       encoder_state,

@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow.contrib.seq2seq import Helper
+import numpy as np
 
 
 class RegressionHelper(Helper):
@@ -7,26 +8,30 @@ class RegressionHelper(Helper):
     Helper instances are used by `BasicDecoder`.
     """
 
-    def __init__(self, max_output_length):
+    def __init__(self, batch_size, max_output_length):
         self.max_output_length = max_output_length
+        self._batch_size = batch_size
 
+    @property
     def batch_size(self):
         """Batch size of tensor returned by `sample`.
         Returns a scalar int32 tensor.
         """
-        return 1
+        return self._batch_size
 
+    @property
     def sample_ids_shape(self):
         """Shape of tensor returned by `sample`, excluding the batch dimension.
         Returns a `TensorShape`.
         """
-        return [1]
+        return tf.TensorShape([])
 
+    @property
     def sample_ids_dtype(self):
         """DType of tensor returned by `sample`.
         Returns a DType.
         """
-        return tf.int32
+        return np.int32
 
     def initialize(self, name=None):
         """Returns `(initial_finished, initial_inputs)`."""
@@ -34,7 +39,7 @@ class RegressionHelper(Helper):
 
     def sample(self, time, outputs, state, name=None):
         """Returns `sample_ids`."""
-        return [0]
+        return tf.tile([0], [self._batch_size])  # Return all 0; we ignore them
 
     def next_inputs(self, time, outputs, state, sample_ids, name=None):
         """Returns `(finished, next_inputs, next_state)`."""
