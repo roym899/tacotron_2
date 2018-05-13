@@ -12,13 +12,27 @@ DATASET_PATH = "../dataset/"
 hparams = {}
 hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
 hparams['embedding_size'] = 512
-hparams['max_sentence_length'] = 50
+hparams['max_sentence_length'] = 100
 hparams['basic_encoder_lstm_cells'] = 256
-hparams['frequency_bins'] = 2048
-hparams['max_output_length'] = 5000
+hparams['frequency_bins'] = 1025
+hparams['max_output_length'] = 800
 hparams['max_gradient_norm'] = 5
 hparams['learning_rate'] = 0.0001
 
+# Create dataset
+# TODO: First check if dataset is available, otherwise cancel
+
+# TODO: Check if it has already been processed
+
+# TODO: process the data
+
+
+dataset
+
 improved_tacotron_2_model = TTS(hparams, "basic")
+
+improved_tacotron_2_model.train()
+
+# TODO: save model
 
 improved_tacotron_2_model.predict("This course is fun.")

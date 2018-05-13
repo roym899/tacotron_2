@@ -1,6 +1,7 @@
 import tensorflow as tf
 import tacotron.utils
 import numpy as np
+from wavenet import wavenet
 from tacotron.RegressionHelper import RegressionHelper
 
 class TTS(object):
@@ -18,6 +19,7 @@ class TTS(object):
 
             # define the input
             self.encoder_inputs = tf.placeholder(tf.int32, [None, hparams['max_sentence_length']], 'inputs')
+            self.is_training = tf.placeholder(tf.bool, [], 'is_training')
 
             batch_size = tf.shape(self.encoder_inputs)[0]
 
@@ -42,35 +44,49 @@ class TTS(object):
 
             # Build RNN cell
             # Helper
-            decoder_outputs = tf.placeholder(tf.float64,
-                                            [hparams['max_output_length'], hparams['frequency_bins']],
-                                            'inputs')
+            self.target_spectograms = tf.placeholder(tf.float32, [None, hparams['max_output_length'], hparams['frequency_bins']])
 
             # Decoder
             # self.global_step_tensor = tf.Variable(10, trainable=False, name='global_step')
 
-            # helper = tf.contrib.seq2seq.TrainingHelper(decoder_outputs, [hparams['max_output_length']], time_major=False)
             decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
             projection_layer = tf.layers.Dense(hparams['frequency_bins'], use_bias=False)
-            fcn = self.stop_fcn
-            helper = RegressionHelper(batch_size, hparams['frequency_bins'], hparams['max_output_length'])
-            decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
-                                                      helper,
+            training_helper = tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
+                                                      [hparams['max_output_length']], # TODO: adjust to batch size
+                                                      time_major=False)
+            inference_helper = RegressionHelper(batch_size, self.hparams['frequency_bins'], self.hparams['max_output_length'])
+
+            # helper = tf.cond(self.is_training,
+            #                  lambda: tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
+            #                                                            [hparams['max_output_length']],
+            #                                                            time_major=False),
+            #                  lambda: RegressionHelper(batch_size, hparams['frequency_bins'],
+            #                                           hparams['max_output_length']))
+
+
+            training_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
+                                                      training_helper,
                                                       encoder_state,
                                                       output_layer=projection_layer)
-            # # Dynamic decoding
-            self.outputs = tf.contrib.seq2seq.dynamic_decode(decoder)
-            # spectograms = self.outputs.rnn_output
 
-            # target_spectograms = dataset_iterator.target_spectograms
-            # train_loss = tf.losses.mean_squared_error(target_spectograms, spectograms)
-            # params = tf.trainable_variables()
-            # gradients = tf.gradients(train_loss, params)
-            # clipped_gradients, _ = tf.clip_by_global_norm(gradients, hparams['max_gradient_norm'])
+            inference_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
+                                                                inference_helper,
+                                                                encoder_state,
+                                                                output_layer=projection_layer)
+
+            # Dynamic decoding
+            self.inference_outputs = tf.contrib.seq2seq.dynamic_decode(inference_decoder)
+            self.training_outputs = tf.contrib.seq2seq.dynamic_decode(training_decoder)
 
             # Optimization
-            # optimizer = tf.train.AdamOptimizer(hparams['learning_rate'])
-            # update_step = optimizer.apply_gradients((clipped_gradients, params))
+            spectograms = self.outputs[0].rnn_output
+            # target_spectograms = dataset_iterator.target_spectograms
+            self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, spectograms)
+
+            optimizer = tf.train.AdamOptimizer(hparams['learning_rate'])
+            # clipped_gradients, _ = tf.clip_by_global_norm(gradients, hparams['max_gradient_norm'])
+            self.minimize = optimizer.minimize(self.train_loss)
+
             self.session = tf.Session()
             init = tf.global_variables_initializer()
             self.session.run(init)
@@ -81,20 +97,24 @@ class TTS(object):
             pass
 
     def train(self):
-        pass
+        fftsize = 2048
+        hops = fftsize//8
+        audio = wavenet.load_audio("/home/leo/dd2424/project/dataset/wavn/APDC2-070-02.wav", expected_samplerate=16000)
+        training_spectogram = wavenet.calculate_stft(audio, fftsize, hops)
+        training_spectogram = np.pad(training_spectogram, ((0,self.hparams['max_output_length']-training_spectogram.shape[0]), (0,0)), 'constant')
+        training_spectogram = np.expand_dims(training_spectogram, 0)
+        training_sentence = "Your father may complain about how badly lit the local roads are."
+        training_sequence = tacotron.utils.text_to_sequence(training_sentence, self.hparams['max_sentence_length'])
+        while loss>0.4:
+            loss, opt = self.session.run([self.train_loss, self.minimize], feed_dict={self.encoder_inputs: np.expand_dims(training_sequence,0), self.target_spectograms: training_spectogram, self.is_training:True})
+            print("Loss: {}".format(loss))
+
 
     def predict(self, text):
         input = tacotron.utils.text_to_sequence(text, self.hparams['max_sentence_length'])
-        res = self.session.run(self.outputs, feed_dict={self.encoder_inputs: np.expand_dims(input,0)})
+        res = self.session.run(self.outputs, feed_dict={self.encoder_inputs: np.expand_dims(input,0), self.is_training:False})
         # test_out = res[0,:,:]
         # print('global_step: %s' % tf.train.global_step(self.session, self.global_step_tensor))
+
+        # TODO: convert output to audio using griffith lim
         print(res[0].rnn_output[0,0,180])
-
-
-    # TODO: return the right dimension for batch
-    def stop_fcn(self):
-        self.counter += 1
-        if self.counter >= self.hparams['max_output_length']:
-            return [True]
-        return [False]
-
