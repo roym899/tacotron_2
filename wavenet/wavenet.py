@@ -51,8 +51,9 @@ def calculate_stft(time_signal,fftsize,hops):
                 columns represent frequency bins.
     """
     hann_window = np.hanning(fftsize)
-    return np.array([np.fft.rfft(hann_window * time_signal[i:i + fftsize])
+    stft = np.array([np.fft.fft(hann_window * time_signal[i:(i + fftsize)])
                      for i in range(0, len(time_signal) - fftsize, hops)])
+    return stft
 
 
 def calculate_inverse_stft(spectogram,fftsize,hops):
@@ -68,7 +69,7 @@ def calculate_inverse_stft(spectogram,fftsize,hops):
     len_samples = int(time_steps*hops+fftsize)
     istft = np.zeros(len_samples)
     for n, i in enumerate(range(0, len(istft)-fftsize, hops)):
-        istft[i:i+fftsize] += hann_window * np.real(np.fft.irfft(spectogram[n]))
+        istft[i:i+fftsize] += hann_window * np.real(np.fft.ifft(spectogram[n]))
     return istft
 
 
@@ -122,20 +123,20 @@ def save_audio(time_signal, samplerate, output_file = 'output.wav'):
 
 
 ### Test procedure ###
-# path = 'C:\\Users\\Thomas\Desktop\\KTH\Period 4\\deep_learning\\project\\wavenet\\classical.wav'
-# input_signal = load_audio(path)
-# fftsize = 2048
-# hops = fftsize//8
-# print(max(input_signal))
-# stft_input = calculate_stft(input_signal, fftsize, hops)
-#
-# mag_input = abs(stft_input)**2
-#
-# reconstructed = reconstruct_signal(mag_input, fftsize, hops, 100)
-# # Scale the reconstructed signal
-# max_value = np.max(abs(reconstructed))
-# if max_value > 1.0:
-#     reconstructed = reconstructed/max_value
-#
-# save_audio(reconstructed, 44100)
-# print('Done')
+path = 'C:\\Users\\Thomas\Desktop\\KTH\Period 4\\deep_learning\\project\\wavenet\\classical.wav'
+input_signal = load_audio(path)
+fftsize = 2048
+hops = fftsize//8
+#print(max(input_signal))
+stft_input = calculate_stft(input_signal, fftsize, hops)
+
+mag_input = abs(stft_input)**2
+
+reconstructed = reconstruct_signal(mag_input, fftsize, hops, 100)
+# Scale the reconstructed signal
+max_value = np.max(abs(reconstructed))
+if max_value > 1.0:
+    reconstructed = reconstructed/max_value
+
+save_audio(reconstructed, 44100)
+print('Done')
