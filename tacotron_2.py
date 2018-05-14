@@ -31,7 +31,7 @@ hparams['learning_rate'] = 10e-3
 
 dataset
 
-improved_tacotron_2_model = TTS(hparams, "basic")
+improved_tacotron_2_model = TTS(hparams, "convolutional")
 
 improved_tacotron_2_model.train()
 
