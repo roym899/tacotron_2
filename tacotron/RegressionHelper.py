@@ -44,5 +44,5 @@ class RegressionHelper(Helper):
 
     def next_inputs(self, time, outputs, state, sample_ids, name=None):
         """Returns `(finished, next_inputs, next_state)`."""
-        stop = tf.cond(time > self.max_output_length, lambda: True, lambda: False)
+        stop = tf.cond(time >= self.max_output_length-1, lambda: True, lambda: False)
         return (stop, outputs, state)
