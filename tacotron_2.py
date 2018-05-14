@@ -12,26 +12,28 @@ DATASET_PATH = "../dataset/"
 hparams = {}
 hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
 hparams['embedding_size'] = 512
-hparams['max_sentence_length'] = 500
+hparams['max_sentence_length'] = 400
 hparams['basic_encoder_lstm_cells'] = 512
-hparams['frequency_bins'] = 100
-hparams['max_output_length'] = 1000
+hparams['frequency_bins'] = 2048
+hparams['max_output_length'] = 500
 hparams['max_gradient_norm'] = 5
-hparams['learning_rate'] = 0.001
+hparams['learning_rate'] = 10e-3
 hparams['fftsize'] = 2048
 hparams['hops'] = 2048 // 8
 
 import os
-from tacotron.utils import load_data
 t = os.path.abspath('.')
 print(t)
 
-load_data(t, hparams)
+# tacotron.utils.process_data(t, hparams)
+tacotron.utils.load_dataset()
 
 # Create dataset
 # TODO: First check if dataset is available, otherwise cancel
 
+
 # TODO: Check if it has already been processed
+
 
 # TODO: process the data
 

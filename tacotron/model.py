@@ -87,9 +87,13 @@ class TTS(object):
             # target_spectograms = dataset_iterator.target_spectograms
             self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
 
-            optimizer = tf.train.AdamOptimizer(hparams['learning_rate'])
-            # clipped_gradients, _ = tf.clip_by_global_norm(gradients, hparams['max_gradient_norm'])
-            self.minimize = optimizer.minimize(self.train_loss)
+            global_step = tf.Variable(0, trainable=False)
+            starter_learning_rate = hparams['learning_rate']
+            learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
+                                                       1, 0.5, staircase=True)
+
+
+            self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.train_loss, global_step=global_step)
 
             self.session = tf.Session()
             init = tf.global_variables_initializer()
@@ -140,7 +144,7 @@ class TTS(object):
         next_image_loss = 0
         test = 0
         while loss>0:
-            loss, opt = self.session.run([self.train_loss, self.minimize], feed_dict={self.encoder_inputs: np.expand_dims(training_sequence,0), self.target_spectograms: training_spectogram, self.is_training:True})
+            loss, opt = self.session.run([self.train_loss, self.optimizer], feed_dict={self.encoder_inputs: np.expand_dims(training_sequence,0), self.target_spectograms: training_spectogram, self.is_training:True})
             print("Loss: {}".format(loss))
             counter += 1
             if loss < next_image_loss or counter > 500:
