@@ -5,6 +5,10 @@ from wavenet import wavenet
 from tacotron.RegressionHelper import RegressionHelper
 import matplotlib.pyplot as plt
 import matplotlib
+import local_paths
+
+import random
+
 
 
 class TTS(object):
@@ -19,6 +23,8 @@ class TTS(object):
             #         Encoder               Decoder
 
             self.hparams = hparams
+
+
 
             # define the input
             self.encoder_inputs = tf.placeholder(tf.int32, [None, hparams['max_sentence_length']], 'inputs')
@@ -41,7 +47,7 @@ class TTS(object):
             #   encoder_state: [batch_size, num_units]
             self.encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                                        self.encoder_emb_inp,
-                                                                       sequence_length=[hparams['max_sentence_length']],
+                                                                       sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
                                                                        dtype=tf.float32,
                                                                        time_major=False)
 
@@ -55,10 +61,11 @@ class TTS(object):
             decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
             projection_layer = tf.layers.Dense(hparams['frequency_bins'], use_bias=False)
             training_helper = tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
-                                                      [hparams['max_output_length']], # TODO: adjust to batch size
-                                                      time_major=False)
-            inference_helper = RegressionHelper(batch_size, self.hparams['frequency_bins'], self.hparams['max_output_length'])
-
+                                                                tf.fill([batch_size], hparams['max_output_length']),
+                                                                time_major=False)
+            inference_helper = RegressionHelper(batch_size,
+                                                self.hparams['frequency_bins'],
+                                                hparams['max_output_length'])
             # helper = tf.cond(self.is_training,
             #                  lambda: tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
             #                                                            [hparams['max_output_length']],
@@ -68,9 +75,9 @@ class TTS(object):
 
 
             training_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
-                                                      training_helper,
-                                                      encoder_state,
-                                                      output_layer=projection_layer)
+                                                               training_helper,
+                                                               encoder_state,
+                                                               output_layer=projection_layer)
 
             inference_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
                                                                 inference_helper,
@@ -156,7 +163,7 @@ class TTS(object):
             #   encoder_state: [batch_size, num_units]
             self.encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                                     encoder_input,
-                                                                    sequence_length=[hparams['max_sentence_length']],
+                                                                    sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
                                                                     dtype=tf.float32,
                                                                     time_major=False)
 
@@ -171,11 +178,11 @@ class TTS(object):
             decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
             projection_layer = tf.layers.Dense(hparams['frequency_bins'], use_bias=False)
             training_helper = tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
-                                                                [hparams['max_output_length']],
-                                                                # TODO: adjust to batch size
+                                                                tf.fill([batch_size], hparams['max_output_length']),
                                                                 time_major=False)
-            inference_helper = RegressionHelper(batch_size, self.hparams['frequency_bins'],
-                                                self.hparams['max_output_length'])
+            inference_helper = RegressionHelper(batch_size,
+                                                self.hparams['frequency_bins'],
+                                                hparams['max_output_length'])
 
             # helper = tf.cond(self.is_training,
             #                  lambda: tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
@@ -272,7 +279,7 @@ class TTS(object):
             #   encoder_state: [batch_size, num_units]
             self.encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
                                                                     encoder_input,
-                                                                    sequence_length=[hparams['max_sentence_length']],
+                                                                    sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
                                                                     dtype=tf.float32,
                                                                     time_major=False)
 
@@ -290,8 +297,9 @@ class TTS(object):
                                                                 [hparams['max_output_length']],
                                                                 # TODO: adjust to batch size
                                                                 time_major=False)
-            inference_helper = RegressionHelper(batch_size, self.hparams['frequency_bins'],
-                                                self.hparams['max_output_length'])
+            inference_helper = RegressionHelper(batch_size,
+                                                self.hparams['frequency_bins'],
+                                                hparams['max_output_length'])
 
             # helper = tf.cond(self.is_training,
             #                  lambda: tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
@@ -335,7 +343,7 @@ class TTS(object):
         elif mode == "tacotron-2":
             pass
 
-    def train(self):
+    def train_test(self):
         training_sentence = "Your father may complain about how badly lit the local roads are."
         input = tacotron.utils.text_to_sequence(training_sentence, self.hparams['max_sentence_length'])
         pre_res = self.session.run(self.inference_outputs, feed_dict={self.encoder_inputs: np.expand_dims(input,0), self.is_training:False})
@@ -345,7 +353,7 @@ class TTS(object):
 
         fftsize = 2048
         hops = 512
-        audio = wavenet.load_audio("C:\\Users\\Thomas\Desktop\\KTH\Period 4\\deep_learning\\project\\wavenet\\speech.wav", expected_samplerate=16000)
+        audio = wavenet.load_audio(local_paths.TEST_AUDIO, expected_samplerate=16000)
         training_spectogram = wavenet.calculate_stft(audio, fftsize, hops)
         training_spectogram = abs(training_spectogram) ** 2
         # training_spectogram = training_spectogram[0:self.hparams['max_output_length'],:]
@@ -355,7 +363,7 @@ class TTS(object):
         max_value = np.max(abs(rec_audio))
         if max_value > 1.0:
             rec_audio = rec_audio / max_value
-        audio = wavenet.save_audio(rec_audio, 16000, "C:\\Users\\Thomas\Desktop\\KTH\Period 4\\deep_learning\\project\\wavenet\\test_training.wav")
+        audio = wavenet.save_audio(rec_audio, 16000, local_paths.RECONSTRUCTED_AUDIO_OUTPUT)
 
         training_spectogram = training_spectogram[:, 0:128]
 
@@ -386,8 +394,32 @@ class TTS(object):
                 max_value = np.max(abs(rec_audio))
                 if max_value > 1.0:
                     rec_audio = rec_audio / max_value
-                audio = wavenet.save_audio(rec_audio, 16000, "/home/leo/dd2424/project/dataset/test_{}.wav".format(test))
+                audio = wavenet.save_audio(rec_audio, 16000, local_paths.TEST_PATTERN.format(test))
                 test += 1
+
+    def train(self, training_sequences, training_spectograms):
+        loss = np.Inf
+        counter = 0
+        next_image_loss = 0
+        test = 0
+        batch_size = 10
+        while loss>0:
+            data = (training_sequences, training_spectograms)
+            idx = 0
+            while idx+batch_size < data[0].shape[0]:
+                loss, opt = self.session.run([self.train_loss, self.optimizer],
+                                             feed_dict={self.encoder_inputs: data[0][idx:idx+batch_size,:],
+                                                        self.target_spectograms: data[1][idx:idx+batch_size,:,:],
+                                                        self.is_training:True})
+                idx += batch_size
+            loss = self.session.run(self.train_loss,
+                                    feed_dict={self.encoder_inputs: training_sequences,
+                                               self.target_spectograms: training_spectograms,
+                                               self.is_training: True})
+
+            print("Loss: {}".format(loss))
+
+
 
     def predict(self, text):
         input = tacotron.utils.text_to_sequence(text, self.hparams['max_sentence_length'])

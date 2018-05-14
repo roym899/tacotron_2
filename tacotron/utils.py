@@ -57,6 +57,8 @@ def load_dataset():
   # check the dimension
   assert sequence.shape[0] == spectogram.shape[0]
 
+  return sequence, spectogram
+
   # sequence_placeholder = tf.placeholder(sequence.dtype, sequence.shape)
   # spectogram_placeholder = tf.placeholder(spectogram.dtype, spectogram.shape)
   #
