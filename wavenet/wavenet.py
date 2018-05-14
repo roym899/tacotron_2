@@ -123,20 +123,20 @@ def save_audio(time_signal, samplerate, output_file = 'output.wav'):
 
 
 ### Test procedure ###
-path = 'C:\\Users\\Thomas\Desktop\\KTH\Period 4\\deep_learning\\project\\wavenet\\classical.wav'
-input_signal = load_audio(path)
-fftsize = 2048
-hops = fftsize//8
-#print(max(input_signal))
-stft_input = calculate_stft(input_signal, fftsize, hops)
-
-mag_input = abs(stft_input)**2
-
-reconstructed = reconstruct_signal(mag_input, fftsize, hops, 100)
-# Scale the reconstructed signal
-max_value = np.max(abs(reconstructed))
-if max_value > 1.0:
-    reconstructed = reconstructed/max_value
-
-save_audio(reconstructed, 44100)
-print('Done')
+# path = 'C:\\Users\\Thomas\Desktop\\KTH\Period 4\\deep_learning\\project\\wavenet\\classical.wav'
+# input_signal = load_audio(path)
+# fftsize = 2048
+# hops = fftsize//8
+# #print(max(input_signal))
+# stft_input = calculate_stft(input_signal, fftsize, hops)
+#
+# mag_input = abs(stft_input)**2
+#
+# reconstructed = reconstruct_signal(mag_input, fftsize, hops, 100)
+# # Scale the reconstructed signal
+# max_value = np.max(abs(reconstructed))
+# if max_value > 1.0:
+#     reconstructed = reconstructed/max_value
+#
+# save_audio(reconstructed, 44100)
+# print('Done')

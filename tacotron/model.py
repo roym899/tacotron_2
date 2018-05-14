@@ -6,6 +6,7 @@ from tacotron.RegressionHelper import RegressionHelper
 import matplotlib.pyplot as plt
 import matplotlib
 
+
 class TTS(object):
     def __init__(self, hparams, mode):
         def sample_fcn(outputs):
@@ -94,8 +95,6 @@ class TTS(object):
             init = tf.global_variables_initializer()
             self.session.run(init)
 
-
-
         elif mode == "tacotron-2":
             pass
 
@@ -158,7 +157,6 @@ class TTS(object):
                     rec_audio = rec_audio / max_value
                 audio = wavenet.save_audio(rec_audio, 16000, "/home/leo/dd2424/project/dataset/test_{}.wav".format(test))
                 test += 1
-
 
     def predict(self, text):
         input = tacotron.utils.text_to_sequence(text, self.hparams['max_sentence_length'])
