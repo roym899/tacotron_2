@@ -89,7 +89,8 @@ class TTS(object):
             global_step = tf.Variable(0, trainable=False)
             starter_learning_rate = hparams['learning_rate']
             learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-                                                       100000, 0.5, staircase=True)
+                                                       10000, 0.96, staircase=True)
+
 
 
             self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.train_loss, global_step=global_step)
@@ -205,7 +206,7 @@ class TTS(object):
             global_step = tf.Variable(0, trainable=False)
             starter_learning_rate = hparams['learning_rate']
             learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-                                                       1, 0.5, staircase=True)
+                                                       10000, 0.96, staircase=True)
 
             self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.train_loss, global_step=global_step)
 
@@ -340,27 +341,20 @@ class TTS(object):
         plt.show()
 
         fftsize = 2048
-        hops = fftsize//8
+        hops = 512
         audio = wavenet.load_audio("C:\\Users\\Thomas\Desktop\\KTH\Period 4\\deep_learning\\project\\wavenet\\speech.wav", expected_samplerate=16000)
         training_spectogram = wavenet.calculate_stft(audio, fftsize, hops)
         training_spectogram = abs(training_spectogram) ** 2
-        # training_spectogram = np.log(training_spectogram)
-        training_spectogram = training_spectogram[0:self.hparams['max_output_length'],:]
-
-        rec_audio = wavenet.reconstruct_signal(training_spectogram, fftsize, hops, 100)
+        # training_spectogram = training_spectogram[0:self.hparams['max_output_length'],:]
+        training_spectogram[:, 128:-1] = 0
+        training_spectogram_test =  np.copy(training_spectogram)
+        rec_audio = wavenet.reconstruct_signal(training_spectogram_test, fftsize, hops, 100)
         max_value = np.max(abs(rec_audio))
         if max_value > 1.0:
             rec_audio = rec_audio / max_value
         audio = wavenet.save_audio(rec_audio, 16000, "C:\\Users\\Thomas\Desktop\\KTH\Period 4\\deep_learning\\project\\wavenet\\test_training.wav")
 
-
-        # training_spectogram[training_spectogram<5000]=0
-        # training_spectogram[training_spectogram>=5000]=5000
-        # print(np.mean(np.power(training_spectogram, 2)))
-        # print(np.count_nonzero(np.power(training_spectogram, 2)))
-        # print(np.sum(np.power(training_spectogram, 2)))
-
-
+        training_spectogram = training_spectogram[:, 0:128]
 
         # training_spectogram = np.pad(training_spectogram, ((0,self.hparams['max_output_length']-training_spectogram.shape[0]), (0,0)), 'constant')
         # training_spectogram = (training_spectogram - np.min(training_spectogram) ) / (np.max(training_spectogram)-np.min(training_spectogram))
@@ -384,7 +378,8 @@ class TTS(object):
                 # next_image_loss = loss - 1
                 counter = 0
 
-                rec_audio = wavenet.reconstruct_signal(post_res[0].rnn_output[0,:,:], fftsize, hops, 100)
+                training_spectogram_test[:, 0:128] = post_res[0].rnn_output[0,:,:]
+                rec_audio = wavenet.reconstruct_signal(training_spectogram_test, fftsize, hops, 100)
                 max_value = np.max(abs(rec_audio))
                 if max_value > 1.0:
                     rec_audio = rec_audio / max_value
