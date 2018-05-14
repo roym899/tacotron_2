@@ -13,11 +13,11 @@ hparams = {}
 hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
 hparams['embedding_size'] = 512
 hparams['max_sentence_length'] = 100
-hparams['basic_encoder_lstm_cells'] = 256
+hparams['basic_encoder_lstm_cells'] = 512
 hparams['frequency_bins'] = 1025
-hparams['max_output_length'] = 800
+hparams['max_output_length'] = 100
 hparams['max_gradient_norm'] = 5
-hparams['learning_rate'] = 0.0001
+hparams['learning_rate'] = 0.001
 
 # Create dataset
 # TODO: First check if dataset is available, otherwise cancel
