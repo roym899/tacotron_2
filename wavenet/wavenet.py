@@ -55,6 +55,33 @@ def calculate_stft(time_signal,fftsize,hops):
                      for i in range(0, len(time_signal) - fftsize, hops)])
     return stft
 
+def calculate_mag(spectogramm,cutoff = 128):
+    """
+    Function takes the input spectogram calculates the magnitude and cutsoff the high frequencies
+
+    :param spectogramm: input spectorgram, size: seq_length, frequency_bins
+    :param cutoff: cutoff frequency at which the magnitude spectrogramm is cut off
+    :return: cutoff magnitude array of size: seq_length x (0:cutoff)
+    """
+    magnitude = abs(spectogramm)**2;
+    cut_off_magnitude = np.copy(magnitude[:,0:cutoff])
+    return cut_off_magnitude
+
+def pad_magnitude(cut_off_magnitude,desired_frequency_bins = 2048):
+    """
+    Takes a magnitude spectogramm, that was cut off, and restores it to it's original amount of frequency bins
+    by zero padding the higher frequencies
+    :param cut_off_magnitude: input magnitude spectromgramm that was cut off; size: seq_length, frequency_bins
+    :param desired_frequency_bins: Amount of frequency bins we want to have
+    :return: return the same cut_off_magnitude spectogramm with additional zero padded high frequencies;
+    size: seq_length, desired_frequency_bins
+    """
+    shape = np.shape(cut_off_magnitude)
+    output_length = shape[0]
+    frequency_bins = shape[1]
+    padded_magnitude = np.zeros((output_length,desired_frequency_bins))
+    padded_magnitude[:,0:frequency_bins] = cut_off_magnitude
+    return padded_magnitude
 
 def calculate_inverse_stft(spectogram,fftsize,hops):
     """
@@ -129,15 +156,13 @@ def save_audio(time_signal, samplerate, output_file = 'output.wav'):
 # fftsize = 2048;
 # hops = 512;
 # #hops = fftsize//8
-
+#
 # #print(max(input_signal))
 # stft_input = calculate_stft(input_signal, fftsize, hops)
 #
-# mag_input = abs(stft_input)**2
+# cutoff_mag_input = calculate_mag(stft_input)
+# mag_input = pad_magnitude(cutoff_mag_input)
 #
-# mag_input[:,128:2047] = 0
-
-
 #
 # reconstructed = reconstruct_signal(mag_input, fftsize, hops, 100)
 # # Scale the reconstructed signal
