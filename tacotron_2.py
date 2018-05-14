@@ -14,19 +14,12 @@ hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
 hparams['embedding_size'] = 512
 hparams['max_sentence_length'] = 400
 hparams['basic_encoder_lstm_cells'] = 512
-hparams['frequency_bins'] = 2048
-hparams['max_output_length'] = 500
-hparams['max_gradient_norm'] = 5
-hparams['learning_rate'] = 10e-3
 hparams['fftsize'] = 2048
 hparams['hops'] = 2048 // 8
-
-import os
-t = os.path.abspath('.')
-print(t)
-
-# tacotron.utils.process_data(t, hparams)
-tacotron.utils.load_dataset()
+hparams['frequency_bins'] = 128
+hparams['max_output_length'] = 120
+hparams['max_gradient_norm'] = 5
+hparams['learning_rate'] = 10e-5
 
 # Create dataset
 # TODO: First check if dataset is available, otherwise cancel
@@ -47,3 +40,12 @@ tacotron.utils.load_dataset()
 # # TODO: save model
 #
 # improved_tacotron_2_model.predict("This course is fun.")
+
+improved_tacotron_2_model = TTS(hparams, "convolutional")
+
+improved_tacotron_2_model.train()
+
+# TODO: save model
+
+improved_tacotron_2_model.predict("This course is fun.")
+
