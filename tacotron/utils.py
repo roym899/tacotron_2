@@ -24,7 +24,7 @@ def process_data(abs_path, hparams):
     lines = f.readlines()
     num = len(lines)
     input_sequence = np.zeros(shape=(num, hparams['max_sentence_length']))
-    target_spectogram = np.zeros(shape=(num, 500, 128))
+    target_spectogram = np.zeros(shape=(num, hparams['max_output_length'], hparams['frequency_bins']))
 
     for index, line in enumerate(lines):
       # line structure: ( wav_name "text" )
