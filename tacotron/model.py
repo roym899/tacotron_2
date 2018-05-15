@@ -263,6 +263,8 @@ class TTS(object):
                                     activation=tf.nn.relu)
 
             encoder_input = tf.reshape(conv3,[-1,100,512])
+
+
             # Build RNN cell
             encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
             # Run Dynamic RNN
@@ -273,6 +275,10 @@ class TTS(object):
                                                                     sequence_length=[hparams['max_sentence_length']],
                                                                     dtype=tf.float32,
                                                                     time_major=False)
+
+            # Add attention mechanism
+
+            attention_mechanism = tf.contrib.seq2seq.BahdanauAttention()
 
             # Build RNN cell
             # Helper
@@ -383,7 +389,7 @@ class TTS(object):
                 max_value = np.max(abs(rec_audio))
                 if max_value > 1.0:
                     rec_audio = rec_audio / max_value
-                audio = wavenet.save_audio(rec_audio, 16000, "/home/leo/dd2424/project/dataset/test_{}.wav".format(test))
+                audio = wavenet.save_audio(rec_audio, 16000, "C:\\Users\\Thomas\Desktop\\KTH\Period 4\\deep_learning\\project\\wavenet\\network_training\\test_{}.wav".format(test))
                 test += 1
 
 
