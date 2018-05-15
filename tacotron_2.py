@@ -37,6 +37,8 @@ hparams['frequency_bins'] = 128
 hparams['max_output_length'] = 700
 hparams['learning_rate'] = 10e-3
 hparams['batch_size'] = 64
+hparams['number_conv_layers_encoder'] = 3
+hparams['is_Training'] = True
 
 # First check if dataset is available, otherwise cancel
 assert os.path.exists(local_paths.DATASET_PATH + "prompts.data"), "Missing text dataset!"
