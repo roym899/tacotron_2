@@ -18,9 +18,9 @@ def text_to_sequence(text, length):
   return sequence
 
 
-def process_data(hparams):
-  abs_path = os.path.abspath('.')
-  with open(os.path.join(abs_path, '..', 'dataset', 'test.data')) as f:
+def process_data(dataset_path, hparams):
+  print("Processing data...")
+  with open(os.path.join(dataset_path, 'prompts.data')) as f:
     lines = f.readlines()
     num = len(lines)
     input_sequence = np.zeros(shape=(num, hparams['max_sentence_length']))
@@ -32,8 +32,11 @@ def process_data(hparams):
       wav_name = parts[0].strip('( ')
       text = parts[1]
 
+      if len(text) > hparams['max_sentence_length']:
+        continue
+
       # convert audio to spectogram
-      audio = wavenet.load_audio(os.path.join(abs_path, '..', 'dataset', 'wavn', wav_name + '.wav'), expected_samplerate=16000)
+      audio = wavenet.load_audio(os.path.join(dataset_path, 'wavn', wav_name + '.wav'), expected_samplerate=16000)
       spectogram = wavenet.calculate_stft(audio, hparams['fftsize'], hparams['hops'])
       spectogram = np.pad(spectogram,
                           ((0, hparams['max_output_length'] - spectogram.shape[0]), (0, 0)),
@@ -46,14 +49,15 @@ def process_data(hparams):
       sequence = text_to_sequence(text, hparams['max_sentence_length'])
       input_sequence[index] = sequence
 
-    np.save(os.path.join(abs_path, '..', 'dataset', 'sequence.npy'), input_sequence)
-    np.save(os.path.join(abs_path, '..', 'dataset', 'spectogram.npy'), target_spectogram)
+      print("Processing data... {}/{}".format(index, len(lines)))
+
+    np.save(os.path.join(dataset_path, 'sequence.npy'), input_sequence)
+    np.save(os.path.join(dataset_path, 'spectogram.npy'), target_spectogram)
 
 
-def load_dataset():
-  abs_path = os.path.abspath('.')
-  sequence = np.load(os.path.join(abs_path, '..', 'dataset', 'sequence.npy'))
-  spectogram = np.load(os.path.join(abs_path, '..', 'dataset', 'spectogram.npy'))
+def load_dataset(dataset_path):
+  sequence = np.load(os.path.join(dataset_path, 'sequence.npy'))
+  spectogram = np.load(os.path.join(dataset_path, 'spectogram.npy'))
 
   # check the dimension
   assert sequence.shape[0] == spectogram.shape[0]

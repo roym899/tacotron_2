@@ -97,7 +97,7 @@ class TTS(object):
             global_step = tf.Variable(0, trainable=False)
             starter_learning_rate = hparams['learning_rate']
             learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-                                                       10000, 0.96, staircase=True)
+                                                       1000, 0.96, staircase=True)
 
 
 
@@ -221,8 +221,6 @@ class TTS(object):
             self.session = tf.Session()
             init = tf.global_variables_initializer()
             self.session.run(init)
-
-
         elif mode == "attention":
             # embedding -> 3 Convolutional Layer -> LSTM layer -> Attention Layer -> LSTM layer -> Dense
             # -------------------------------------------------------------------    -------------------
@@ -338,8 +336,6 @@ class TTS(object):
             self.session = tf.Session()
             init = tf.global_variables_initializer()
             self.session.run(init)
-
-
         elif mode == "tacotron-2":
             pass
 
@@ -357,7 +353,7 @@ class TTS(object):
         training_spectogram = wavenet.calculate_stft(audio, fftsize, hops)
         training_spectogram = abs(training_spectogram) ** 2
         # training_spectogram = training_spectogram[0:self.hparams['max_output_length'],:]
-        training_spectogram[:, 128:-1] = 0
+        training_spectogram[:, self.hparams['frequency_bins']:-1] = 0
         training_spectogram_test =  np.copy(training_spectogram)
         rec_audio = wavenet.reconstruct_signal(training_spectogram_test, fftsize, hops, 100)
         max_value = np.max(abs(rec_audio))
@@ -365,11 +361,12 @@ class TTS(object):
             rec_audio = rec_audio / max_value
         audio = wavenet.save_audio(rec_audio, 16000, local_paths.RECONSTRUCTED_AUDIO_OUTPUT)
 
-        training_spectogram = training_spectogram[:, 0:128]
+        training_spectogram = training_spectogram[0:self.hparams['max_output_length'], 0:self.hparams['frequency_bins']]
 
         # training_spectogram = np.pad(training_spectogram, ((0,self.hparams['max_output_length']-training_spectogram.shape[0]), (0,0)), 'constant')
         # training_spectogram = (training_spectogram - np.min(training_spectogram) ) / (np.max(training_spectogram)-np.min(training_spectogram))
         training_spectogram = np.expand_dims(training_spectogram, 0)
+
         plt.imshow(training_spectogram[0, :, :], cmap='hot', interpolation='nearest',norm=matplotlib.colors.Normalize())
         plt.show()
         training_sequence = tacotron.utils.text_to_sequence(training_sentence, self.hparams['max_sentence_length'])
@@ -389,12 +386,12 @@ class TTS(object):
                 # next_image_loss = loss - 1
                 counter = 0
 
-                training_spectogram_test[:, 0:128] = post_res[0].rnn_output[0,:,:]
-                rec_audio = wavenet.reconstruct_signal(training_spectogram_test, fftsize, hops, 100)
-                max_value = np.max(abs(rec_audio))
-                if max_value > 1.0:
-                    rec_audio = rec_audio / max_value
-                audio = wavenet.save_audio(rec_audio, 16000, local_paths.TEST_PATTERN.format(test))
+                # training_spectogram_test[:, 0:self.hparams['frequency_bins']] = post_res[0].rnn_output[0,:,:]
+                # rec_audio = wavenet.reconstruct_signal(training_spectogram_test, fftsize, hops, 100)
+                # max_value = np.max(abs(rec_audio))
+                # if max_value > 1.0:
+                #     rec_audio = rec_audio / max_value
+                # audio = wavenet.save_audio(rec_audio, 16000, local_paths.TEST_PATTERN.format(test))
                 test += 1
 
     def train(self, training_sequences, training_spectograms):
@@ -402,7 +399,12 @@ class TTS(object):
         counter = 0
         next_image_loss = 0
         test = 0
-        batch_size = 10
+        test_sentence = training_sequences[0,:]
+        test_spectogram = training_spectograms[0,:,:]
+        plt.imshow(test_spectogram, cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
+        plt.show()
+        batch_size = self.hparams['batch_size']
+        counter = 0
         while loss>0:
             data = (training_sequences, training_spectograms)
             idx = 0
@@ -418,6 +420,14 @@ class TTS(object):
                                                self.is_training: True})
 
             print("Loss: {}".format(loss))
+            counter += 1
+            if loss < next_image_loss or counter > 50:
+                post_res = self.session.run(self.inference_outputs, feed_dict={self.encoder_inputs: np.expand_dims(test_sentence, 0), self.is_training: False})
+
+                plt.imshow(post_res[0].rnn_output[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
+                plt.show()
+                # next_image_loss = loss - 1
+                counter = 0
 
 
 
