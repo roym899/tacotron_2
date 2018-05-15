@@ -2,6 +2,8 @@
 import dataset
 from tacotron.model import TTS
 import tacotron
+import os
+import numpy as np
 
 # assuming the dataset folder structure is
 # DATASET_PATH/wavn/*.wav
@@ -21,13 +23,17 @@ hparams['max_output_length'] = 500
 hparams['max_gradient_norm'] = 5
 hparams['learning_rate'] = 10e-5
 
-# Create dataset
-# TODO: First check if dataset is available, otherwise cancel
-# TODO: Check if it has already been processed
-# TODO: process the data
-
-tacotron.utils.process_data("/home/leo/dd2424/project/tacotron_2/", hparams)
-
+# First check if dataset is available, otherwise cancel
+assert os.path.exists(DATASET_PATH + "prompts.data"), "Missing text dataset!"
+assert os.path.exists(DATASET_PATH + "wavn"), "Missing audio dataset!"
+# Check if it has already been processed
+if not os.path.exists(DATASET_PATH + "sequence.npy") or\
+        not os.path.exists(DATASET_PATH + "spectogram.npy") or\
+        np.shape(np.load(DATASET_PATH + "sequence.npy"))[1] != hparams['max_sentence_length'] or\
+        np.shape(np.load(DATASET_PATH + "spectogram.npy"))[1:3] != (hparams['max_output_length'], hparams['frequency_bins']):
+    # process the data
+    tacotron.utils.process_data(hparams)
+# Load dataset
 training_sequences, training_spectograms = tacotron.utils.load_dataset()
 
 improved_tacotron_2_model = TTS(hparams, "basic")

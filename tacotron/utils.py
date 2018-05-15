@@ -18,9 +18,9 @@ def text_to_sequence(text, length):
   return sequence
 
 
-def process_data(abs_path, hparams):
+def process_data(hparams):
+  abs_path = os.path.abspath('.')
   with open(os.path.join(abs_path, '..', 'dataset', 'test.data')) as f:
-    data = {}
     lines = f.readlines()
     num = len(lines)
     input_sequence = np.zeros(shape=(num, hparams['max_sentence_length']))
@@ -46,13 +46,14 @@ def process_data(abs_path, hparams):
       sequence = text_to_sequence(text, hparams['max_sentence_length'])
       input_sequence[index] = sequence
 
-    np.save('sequence.npy', input_sequence)
-    np.save('spectogram.npy', target_spectogram)
+    np.save(os.path.join(abs_path, '..', 'dataset', 'sequence.npy'), input_sequence)
+    np.save(os.path.join(abs_path, '..', 'dataset', 'spectogram.npy'), target_spectogram)
 
 
 def load_dataset():
-  sequence = np.load("sequence.npy")
-  spectogram = np.load("spectogram.npy")
+  abs_path = os.path.abspath('.')
+  sequence = np.load(os.path.join(abs_path, '..', 'dataset', 'sequence.npy'))
+  spectogram = np.load(os.path.join(abs_path, '..', 'dataset', 'spectogram.npy'))
 
   # check the dimension
   assert sequence.shape[0] == spectogram.shape[0]
