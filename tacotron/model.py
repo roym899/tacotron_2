@@ -130,32 +130,9 @@ class TTS(object):
 
             # Build three Convolutional layers
 
-            conv_input = tf.expand_dims(self.encoder_emb_inp,3)
+            conv_input = self.encoder_emb_inp
 
-            #First convolutional layer applies a 5x1 kernel to the input and apllies zero padding to keep the input dimensions
-            conv1 = tf.layers.conv2d(inputs=conv_input,
-                                    filters = 1,
-                                    kernel_size= [5,1],
-                                    padding = 'same',
-                                    activation= tf.nn.relu)
-
-            # Second convolutional layer applues a 5x1 kernel to the input and applies zero padding to keep the input dimensions
-
-            conv2 = tf.layers.conv2d(inputs=conv1,
-                                    filters = 1,
-                                    kernel_size= [5,1],
-                                    padding = 'same',
-                                    activation= tf.nn.relu)
-
-            # Third convolutional layer applues a 5x1 kernel to the input and applies zero padding to keep the input dimensions
-
-            conv3 = tf.layers.conv2d(inputs=conv2,
-                                    filters=1,
-                                    kernel_size=[5, 1],
-                                    padding='same',
-                                    activation=tf.nn.relu)
-
-            encoder_input = tf.reshape(conv3,[-1,100,512])
+            encoder_input = self.conv_encoder(conv_input,hparams['number_conv_layers_encoder'],hparams['is_Training'])
             # Build RNN cell
             encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
             # Run Dynamic RNN
@@ -349,6 +326,30 @@ class TTS(object):
         elif mode == "tacotron-2":
             pass
 
+    def conv_encoder(self, conv_input,number_conv_layers,is_training, kernel_size = (5,), channels = 512,activation = tf.nn.relu ):
+        """
+        Calculates the output of the 1D convolutional layers for the encoder part of the network.
+        :param conv_input: Input to the first convolutional layer
+        :param number_conv_layers: Defiens of how many convolutional layers this part of the network consists
+        :param is_training: Parameter that indicates if the network is in training or inference mode.
+                            Determines how the batch normalization after every convolutional layer is performed
+        :param kernel_size: Defines the size of the kernel that is applied at every layer
+        :param channels:    Defines the dimension of the character embedding and helps to perform the 1D convolution
+        :param activation:  Defines the activation function of every convolutional layer
+        :return: Returns the output after number_conv_layers many convolutional layers.
+                 Before returning the shape of the output is adjusted to fit the expected shape of the encoder
+        """
+        conv_output = conv_input
+        for i in range(number_conv_layers):
+            conv_output = tf.layers.conv1d(conv_output,filters=channels,kernel_size=kernel_size,activation=None,padding='same')
+            batched_output = tf.layers.batch_normalization(conv_output,training=is_training)
+            activated_output = activation(batched_output)
+            conv_output = activated_output
+        conv_shape = conv_output.get_shape().as_list()
+        conv_output = tf.reshape(conv_output,[-1,conv_shape[1],conv_shape[2]])
+        return conv_output
+
+
     def train_test(self):
         training_sentence = "Your father may complain about how badly lit the local roads are."
         input = tacotron.utils.text_to_sequence(training_sentence, self.hparams['max_sentence_length'])
@@ -400,9 +401,10 @@ class TTS(object):
                 max_value = np.max(abs(rec_audio))
                 if max_value > 1.0:
                     rec_audio = rec_audio / max_value
-                
+
                 audio = wavenet.save_audio(rec_audio, 16000, local_paths.TEST_PATTERN.format(test))
                 test += 1
+
 
     def train(self, training_sequences, training_spectograms):
         loss = np.Inf
