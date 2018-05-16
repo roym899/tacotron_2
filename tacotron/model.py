@@ -3,6 +3,7 @@ import tacotron.utils
 import numpy as np
 from wavenet import wavenet
 from tacotron.RegressionHelper import RegressionHelper
+from tacotron.PrenetTrainingHelper import PrenetTrainingHelper
 import matplotlib.pyplot as plt
 import matplotlib
 import local_paths
@@ -105,12 +106,26 @@ class TTS(object):
                 # TODO: decoder_initial_state = ...
                 pass
 
-        training_helper = tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
-                                                            tf.fill([batch_size], hparams['max_output_length']),
-                                                            time_major=False)
-        inference_helper = RegressionHelper(batch_size,
-                                            self.hparams['frequency_bins'],
-                                            hparams['max_output_length'])
+        if mode & TTS_Mode.PRENET:
+            pre = []
+            pre.append(tf.layers.Dense(hparams['prenet_cells'], use_bias=False, activation=tf.nn.relu))
+            pre.append(tf.layers.Dense(hparams['prenet_cells'], use_bias=False, activation=tf.nn.relu))
+
+            inference_helper = RegressionHelper(batch_size,
+                                                self.hparams['frequency_bins'],
+                                                hparams['max_output_length'],
+                                                pre)
+            training_helper = PrenetTrainingHelper(self.target_spectograms,
+                                                   tf.fill([batch_size], hparams['max_output_length']),
+                                                   pre,
+                                                   time_major=False)
+        else:
+            training_helper = tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
+                                                                tf.fill([batch_size], hparams['max_output_length']),
+                                                                time_major=False)
+            inference_helper = RegressionHelper(batch_size,
+                                                self.hparams['frequency_bins'],
+                                                hparams['max_output_length'])
 
 
 
@@ -201,7 +216,7 @@ class TTS(object):
         audio = wavenet.save_audio(rec_audio, 16000, local_paths.RECONSTRUCTED_AUDIO_OUTPUT)
 
         training_spectogram = training_spectogram[0:self.hparams['max_output_length'], 0:self.hparams['frequency_bins']]
-
+        # training_spectogram = np.log(training_spectogram)
         # training_spectogram = np.pad(training_spectogram, ((0,self.hparams['max_output_length']-training_spectogram.shape[0]), (0,0)), 'constant')
         # training_spectogram = (training_spectogram - np.min(training_spectogram) ) / (np.max(training_spectogram)-np.min(training_spectogram))
         training_spectogram = np.expand_dims(training_spectogram, 0)
@@ -222,8 +237,8 @@ class TTS(object):
             summary, loss, opt = self.session.run([merged, self.train_loss, self.optimizer], feed_dict={self.encoder_inputs: np.expand_dims(training_sequence,0), self.target_spectograms: training_spectogram, self.is_training:True})
             writer.add_summary(summary, epochs)
             epochs += 1
-            if epochs == 10:
-                break
+            # if epochs == 10:
+            #     break
             print("Loss: {}".format(loss))
             counter += 1
             if loss < next_image_loss or counter > 500:

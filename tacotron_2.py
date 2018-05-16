@@ -16,7 +16,7 @@ import local_paths
 # Examples (all BASIC components are always enabled/cannot be disabled)
 # Just add convolution: mode = TTS_MODE.CONVOLUTIONAL
 # Combine Convoluition and 2 Layer LSTM: mode = TTS_MODE.CONVOLUTIONAL | TTS_MODE.TWO_LSTM_DECODER
-mode = TTS_Mode.TWO_LSTM_DECODER
+mode = TTS_Mode.TWO_LSTM_DECODER | TTS_Mode.PRENET
 
 # activate/deactivate test mode, will skip the dataset loading
 test = True
@@ -32,6 +32,7 @@ if test:
     hparams['fftsize'] = 2048
     hparams['hops'] = 2048 // 8
     hparams['frequency_bins'] = 128
+    hparams['prenet_cells'] = 128 # currently only works for same number as frequency_bins, for whatever reason...
     hparams['max_output_length'] = 120
     hparams['max_gradient_norm'] = 5
     hparams['learning_rate'] = 10e-3
@@ -54,6 +55,7 @@ else:
     hparams['batch_size'] = 64
     hparams['number_conv_layers_encoder'] = 3
     hparams['is_Training'] = True
+    hparams['prenet_cells'] = 256
 
 
 

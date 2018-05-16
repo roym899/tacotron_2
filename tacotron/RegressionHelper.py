@@ -2,16 +2,23 @@ import tensorflow as tf
 from tensorflow.contrib.seq2seq import Helper
 import numpy as np
 
-
 class RegressionHelper(Helper):
     """Interface for implementing sampling in seq2seq decoders.
     Helper instances are used by `BasicDecoder`.
     """
 
-    def __init__(self, batch_size, frequency_bins, max_output_length):
+    def __init__(self, batch_size, frequency_bins, max_output_length, pre_net=None):
+        """
+
+        :param batch_size:
+        :param frequency_bins:
+        :param max_output_length:
+        :param pre_net: list of the pre net layers, will be applied on the output in the order of the list
+        """
         self.frequency_bins = frequency_bins
         self._batch_size = batch_size
         self.max_output_length = max_output_length
+        self.pre_net = pre_net
 
     @property
     def batch_size(self):
@@ -44,5 +51,10 @@ class RegressionHelper(Helper):
 
     def next_inputs(self, time, outputs, state, sample_ids, name=None):
         """Returns `(finished, next_inputs, next_state)`."""
+        if self.pre_net is not None:
+            out1 = self.pre_net[0](outputs)
+            out2 = self.pre_net[1](out1)
+        else:
+            out2 = outputs
         stop = tf.cond(time >= self.max_output_length-1, lambda: True, lambda: False)
-        return (stop, outputs, state)
+        return (stop, out2, state)
