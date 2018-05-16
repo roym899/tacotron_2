@@ -52,16 +52,27 @@ class TTS(object):
         else:
             encoder_input = self.encoder_emb_inp
 
-        # Build RNN cell
-        encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
-        # Run Dynamic RNN
-        self.encoder_outputs, encoder_state_output = tf.nn.dynamic_rnn(encoder_cell,
-                                                                       encoder_input,
-                                                                       sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
-                                                                       dtype=tf.float32,
-                                                                       time_major=False)
-        #   encoder_outputs: [max_time, batch_size, num_units]
-        #   encoder_state: [batch_size, num_units]
+        if mode & TTS_Mode.BIDIRECTIONAL_LSTM_ENCODER:
+            encoder_cell_forward = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_lstm_cells']//2)
+            encoder_cell_backward = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_lstm_cells']//2)
+            self.encoder_outputs, encoder_state_output, encoder_state_output_back = tf.contrib.rnn.stack_bidirectional_dynamic_rnn(
+                [encoder_cell_forward],
+                [encoder_cell_backward],
+                encoder_input,
+                sequence_length=tf.fill([batch_size], hparams['max_sentence_length']),
+                dtype=tf.float32,
+                time_major=False)
+        else:
+            # Build RNN cell
+            encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_lstm_cells'])
+            # Run Dynamic RNN
+            self.encoder_outputs, encoder_state_output = tf.nn.dynamic_rnn(encoder_cell,
+                                                                           encoder_input,
+                                                                           sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
+                                                                           dtype=tf.float32,
+                                                                           time_major=False)
+            #   encoder_outputs: [max_time, batch_size, num_units]
+            #   encoder_state: [batch_size, num_units]
 
         # Build RNN cell
         # Helper
@@ -80,31 +91,47 @@ class TTS(object):
         # self.global_step_tensor = tf.Variable(10, trainable=False, name='global_step')
         projection_layer = tf.layers.Dense(hparams['frequency_bins'], use_bias=False)
         if mode & TTS_Mode.TWO_LSTM_DECODER:
-            cells = [tf.nn.rnn_cell.BasicLSTMCell(num_units=hparams['basic_decoder_lstm_cells']) for i in range(2)]
+            cells = [tf.nn.rnn_cell.BasicLSTMCell(num_units=hparams['basic_lstm_cells']//2) for i in range(2)]
             decoder_cell = tf.nn.rnn_cell.MultiRNNCell(cells)
 
             if mode & TTS_Mode.BIDIRECTIONAL_LSTM_ENCODER:
-                # TODO: decoder_initial_state = ...
-                pass
+                decoder_initial_state = list()
+                c1 = encoder_state_output[0][0]
+                c2 = encoder_state_output_back[0][0]
+
+                h1 = encoder_state_output[0][1]
+                h2 = encoder_state_output_back[0][1]
+                decoder_initial_state.append(tf.contrib.rnn.LSTMStateTuple(c1, h1))
+                decoder_initial_state.append(tf.contrib.rnn.LSTMStateTuple(c2, h2))
+                decoder_initial_state = tuple(decoder_initial_state)
             else:
                 decoder_initial_state = list()
                 c = encoder_state_output[0]
-                c1 = c[:,0:hparams['basic_decoder_lstm_cells']]
-                c2 = c[:,hparams['basic_decoder_lstm_cells']:]
+                c1 = c[:,0:hparams['basic_lstm_cells']]
+                c2 = c[:,hparams['basic_lstm_cells']:]
                 h = encoder_state_output[1]
-                h1 = h[:,0:hparams['basic_decoder_lstm_cells']]
-                h2 = h[:,hparams['basic_decoder_lstm_cells']:]
+                h1 = h[:,0:hparams['basic_lstm_cells']]
+                h2 = h[:,hparams['basic_lstm_cells']:]
                 decoder_initial_state.append(tf.contrib.rnn.LSTMStateTuple(c1, h1))
                 decoder_initial_state.append(tf.contrib.rnn.LSTMStateTuple(c2, h2))
                 decoder_initial_state = tuple(decoder_initial_state)
 
         else:
-            decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(2*hparams['basic_decoder_lstm_cells'])
+            decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_lstm_cells'])
             if mode & TTS_Mode.BIDIRECTIONAL_LSTM_ENCODER:
-                decoder_initial_state = encoder_state_output
+                decoder_initial_state = list()
+                c1 = encoder_state_output[0][0]
+                c2 = encoder_state_output_back[0][0]
+                c = tf.concat([c1,c2],1)
+
+                h1 = encoder_state_output[0][1]
+                h2 = encoder_state_output_back[0][1]
+                h = tf.concat([h1,h2],1)
+
+                decoder_initial_state = tf.contrib.rnn.LSTMStateTuple(c,h)
             else:
-                # TODO: decoder_initial_state = ...
-                pass
+                decoder_initial_state = encoder_state_output
+
 
         if mode & TTS_Mode.PRENET:
             pre = []
@@ -303,4 +330,4 @@ class TTS(object):
         # print('global_step: %s' % tf.train.global_step(self.session, self.global_step_tensor))
 
         # TODO: convert output to audio using griffith lim
-        print(res[0].rnn_output[0,0,180])
+        #print(res[0].rnn_output[0,0,180])
