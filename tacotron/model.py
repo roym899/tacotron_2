@@ -53,13 +53,13 @@ class TTS(object):
         # Build RNN cell
         encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
         # Run Dynamic RNN
+        self.encoder_outputs, encoder_state_output = tf.nn.dynamic_rnn(encoder_cell,
+                                                                       encoder_input,
+                                                                       sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
+                                                                       dtype=tf.float32,
+                                                                       time_major=False)
         #   encoder_outputs: [max_time, batch_size, num_units]
         #   encoder_state: [batch_size, num_units]
-        self.encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
-                                                                encoder_input,
-                                                                sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
-                                                                dtype=tf.float32,
-                                                                time_major=False)
 
         # Build RNN cell
         # Helper
@@ -76,15 +76,42 @@ class TTS(object):
 
         # Decoder
         # self.global_step_tensor = tf.Variable(10, trainable=False, name='global_step')
-
-        decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
         projection_layer = tf.layers.Dense(hparams['frequency_bins'], use_bias=False)
+        if mode & TTS_Mode.TWO_LSTM_DECODER:
+            cells = [tf.nn.rnn_cell.BasicLSTMCell(num_units=hparams['basic_decoder_lstm_cells']) for i in range(2)]
+            decoder_cell = tf.nn.rnn_cell.MultiRNNCell(cells)
+
+            if mode & TTS_Mode.BIDIRECTIONAL_LSTM_ENCODER:
+                # TODO: decoder_initial_state = ...
+                pass
+            else:
+                decoder_initial_state = list()
+                c = encoder_state_output[0]
+                c1 = c[:,0:hparams['basic_decoder_lstm_cells']]
+                c2 = c[:,hparams['basic_decoder_lstm_cells']:]
+                h = encoder_state_output[1]
+                h1 = h[:,0:hparams['basic_decoder_lstm_cells']]
+                h2 = h[:,hparams['basic_decoder_lstm_cells']:]
+                decoder_initial_state.append(tf.contrib.rnn.LSTMStateTuple(c1, h1))
+                decoder_initial_state.append(tf.contrib.rnn.LSTMStateTuple(c2, h2))
+                decoder_initial_state = tuple(decoder_initial_state)
+
+        else:
+            decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(2*hparams['basic_decoder_lstm_cells'])
+            if mode & TTS_Mode.BIDIRECTIONAL_LSTM_ENCODER:
+                decoder_initial_state = encoder_state_output
+            else:
+                # TODO: decoder_initial_state = ...
+                pass
+
         training_helper = tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
                                                             tf.fill([batch_size], hparams['max_output_length']),
                                                             time_major=False)
         inference_helper = RegressionHelper(batch_size,
                                             self.hparams['frequency_bins'],
                                             hparams['max_output_length'])
+
+
 
         # helper = tf.cond(self.is_training,
         #                  lambda: tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
@@ -95,12 +122,12 @@ class TTS(object):
 
         training_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
                                                            training_helper,
-                                                           encoder_state,
+                                                           decoder_initial_state,
                                                            output_layer=projection_layer)
 
         inference_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
                                                             inference_helper,
-                                                            encoder_state,
+                                                            decoder_initial_state,
                                                             output_layer=projection_layer)
 
         # Dynamic decoding
