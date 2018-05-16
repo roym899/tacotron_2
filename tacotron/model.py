@@ -6,321 +6,124 @@ from tacotron.RegressionHelper import RegressionHelper
 import matplotlib.pyplot as plt
 import matplotlib
 import local_paths
+from enum import IntFlag
 
 import random
 
-
+class TTS_Mode(IntFlag):
+     BASIC = 0 # Embedding, Onedirectional LSTM, Onedirectional LSTM, Projection
+     CONVOLUTIONAL = 1
+     TWO_LSTM_DECODER = 2
+     PRENET = 4
+     POSTNET = 8
+     BIDIRECTIONAL_LSTM_ENCODER = 16
+     ATTENTION = 32
+     ALL = 65
 
 class TTS(object):
+
+
     def __init__(self, hparams, mode):
         def sample_fcn(outputs):
             return outputs
-        if mode == "basic":
 
+        # embedding -> 3 Convolutional Layers -> LSTM layer -> LSTM layer -> Dense
+        # -------------------------------------------------    -------------------
+        #                        Encoder                            Decoder
 
-            # embedding -> LSTM layer -> LSTM layer -> Dense
-            # -----------------------    -------------------
-            #         Encoder               Decoder
+        self.hparams = hparams
 
-            self.hparams = hparams
+        # define the input
+        self.encoder_inputs = tf.placeholder(tf.int32, [None, hparams['max_sentence_length']], 'inputs')
+        self.is_training = tf.placeholder(tf.bool, [], 'is_training')
 
+        batch_size = tf.shape(self.encoder_inputs)[0]
 
+        # Embedding
+        embedding_encoder = tf.get_variable(
+            "embedding_encoder", [hparams['src_vocab_size'], hparams['embedding_size']])
+        self.encoder_emb_inp = tf.nn.embedding_lookup(embedding_encoder, self.encoder_inputs) # [batch_size, max_time, embedding_size]
 
-            # define the input
-            self.encoder_inputs = tf.placeholder(tf.int32, [None, hparams['max_sentence_length']], 'inputs')
-            self.is_training = tf.placeholder(tf.bool, [], 'is_training')
+        # Convolutional Layers
+        if mode & TTS_Mode.CONVOLUTIONAL:
+            encoder_input = self.conv_encoder(self.encoder_emb_inp,hparams['number_conv_layers_encoder'],hparams['is_Training'])
+        else:
+            encoder_input = self.encoder_emb_inp
 
-            batch_size = tf.shape(self.encoder_inputs)[0]
-
-            # Embedding
-            embedding_encoder = tf.get_variable(
-                "embedding_encoder", [hparams['src_vocab_size'], hparams['embedding_size']])
-            # Look up embedding:
-            #   encoder_inputs: [batch_size, max_time]
-            #   encoder_emb_inp: [batch_size, max_time, embedding_size]
-            self.encoder_emb_inp = tf.nn.embedding_lookup(embedding_encoder, self.encoder_inputs)
-
-            # Build RNN cell
-            encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
-            # Run Dynamic RNN
-            #   encoder_outputs: [max_time, batch_size, num_units]
-            #   encoder_state: [batch_size, num_units]
-            self.encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
-                                                                       self.encoder_emb_inp,
-                                                                       sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
-                                                                       dtype=tf.float32,
-                                                                       time_major=False)
-
-            # Build RNN cell
-            # Helper
-            self.target_spectograms = tf.placeholder(tf.float32, [None, hparams['max_output_length'], hparams['frequency_bins']])
-
-            # Decoder
-            # self.global_step_tensor = tf.Variable(10, trainable=False, name='global_step')
-
-            decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
-            projection_layer = tf.layers.Dense(hparams['frequency_bins'], use_bias=False)
-            training_helper = tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
-                                                                tf.fill([batch_size], hparams['max_output_length']),
+        # Build RNN cell
+        encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
+        # Run Dynamic RNN
+        #   encoder_outputs: [max_time, batch_size, num_units]
+        #   encoder_state: [batch_size, num_units]
+        self.encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
+                                                                encoder_input,
+                                                                sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
+                                                                dtype=tf.float32,
                                                                 time_major=False)
-            inference_helper = RegressionHelper(batch_size,
-                                                self.hparams['frequency_bins'],
-                                                hparams['max_output_length'])
-            # helper = tf.cond(self.is_training,
-            #                  lambda: tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
-            #                                                            [hparams['max_output_length']],
-            #                                                            time_major=False),
-            #                  lambda: RegressionHelper(batch_size, hparams['frequency_bins'],
-            #                                           hparams['max_output_length']))
+
+        # Build RNN cell
+        # Helper
+        self.target_spectograms = tf.placeholder(tf.float32,
+                                                 [None, hparams['max_output_length'], hparams['frequency_bins']])
 
 
-            training_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
-                                                               training_helper,
-                                                               encoder_state,
-                                                               output_layer=projection_layer)
-
-            inference_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
-                                                                inference_helper,
-                                                                encoder_state,
-                                                                output_layer=projection_layer)
-
-            # Dynamic decoding
-            self.inference_outputs = tf.contrib.seq2seq.dynamic_decode(inference_decoder)
-            self.training_outputs = tf.contrib.seq2seq.dynamic_decode(training_decoder)
-
-            # Optimization
-            inference_spectograms = self.inference_outputs[0].rnn_output
-            training_spectograms = self.training_outputs[0].rnn_output
-            # target_spectograms = dataset_iterator.target_spectograms
-            self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
-
-            global_step = tf.Variable(0, trainable=False)
-            starter_learning_rate = hparams['learning_rate']
-            learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-                                                       1000, 0.96, staircase=True)
-
-
-
-            self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.train_loss, global_step=global_step)
-
-            self.session = tf.Session()
-            init = tf.global_variables_initializer()
-            self.session.run(init)
-
-        elif mode == "convolutional":
-            # embedding -> 3 Convolutional Layers -> LSTM layer -> LSTM layer -> Dense
-            # -------------------------------------------------    -------------------
-            #                        Encoder                            Decoder
-
-            self.hparams = hparams
-
-            # define the input
-            self.encoder_inputs = tf.placeholder(tf.int32, [None, hparams['max_sentence_length']], 'inputs')
-            self.is_training = tf.placeholder(tf.bool, [], 'is_training')
-
-            batch_size = tf.shape(self.encoder_inputs)[0]
-
-            # Embedding
-            embedding_encoder = tf.get_variable(
-                "embedding_encoder", [hparams['src_vocab_size'], hparams['embedding_size']])
-            # Look up embedding:
-            #   encoder_inputs: [batch_size, max_time]
-            #   encoder_emb_inp: [batch_size, max_time, embedding_size]
-            self.encoder_emb_inp = tf.nn.embedding_lookup(embedding_encoder, self.encoder_inputs)
-
-            # Build three Convolutional layers
-
-            conv_input = self.encoder_emb_inp
-
-            encoder_input = self.conv_encoder(conv_input,hparams['number_conv_layers_encoder'],hparams['is_Training'])
-            # Build RNN cell
-            encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
-            # Run Dynamic RNN
-            #   encoder_outputs: [max_time, batch_size, num_units]
-            #   encoder_state: [batch_size, num_units]
-            self.encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
-                                                                    encoder_input,
-                                                                    sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
-                                                                    dtype=tf.float32,
-                                                                    time_major=False)
-
-            # Build RNN cell
-            # Helper
-            self.target_spectograms = tf.placeholder(tf.float32,
-                                                     [None, hparams['max_output_length'], hparams['frequency_bins']])
-
-            # Decoder
-            # self.global_step_tensor = tf.Variable(10, trainable=False, name='global_step')
-
-            decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
-            projection_layer = tf.layers.Dense(hparams['frequency_bins'], use_bias=False)
-            training_helper = tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
-                                                                tf.fill([batch_size], hparams['max_output_length']),
-                                                                time_major=False)
-            inference_helper = RegressionHelper(batch_size,
-                                                self.hparams['frequency_bins'],
-                                                hparams['max_output_length'])
-
-            # helper = tf.cond(self.is_training,
-            #                  lambda: tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
-            #                                                            [hparams['max_output_length']],
-            #                                                            time_major=False),
-            #                  lambda: RegressionHelper(batch_size, hparams['frequency_bins'],
-            #                                           hparams['max_output_length']))
-
-            training_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
-                                                               training_helper,
-                                                               encoder_state,
-                                                               output_layer=projection_layer)
-
-            inference_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
-                                                                inference_helper,
-                                                                encoder_state,
-                                                                output_layer=projection_layer)
-
-            # Dynamic decoding
-            self.inference_outputs = tf.contrib.seq2seq.dynamic_decode(inference_decoder)
-            self.training_outputs = tf.contrib.seq2seq.dynamic_decode(training_decoder)
-
-            # Optimization
-            inference_spectograms = self.inference_outputs[0].rnn_output
-            training_spectograms = self.training_outputs[0].rnn_output
-            # target_spectograms = dataset_iterator.target_spectograms
-            self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
-
-            global_step = tf.Variable(0, trainable=False)
-            starter_learning_rate = hparams['learning_rate']
-            learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-                                                       10000, 0.96, staircase=True)
-
-            self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.train_loss, global_step=global_step)
-
-            self.session = tf.Session()
-            init = tf.global_variables_initializer()
-            self.session.run(init)
-        elif mode == "attention":
-            # embedding -> 3 Convolutional Layer -> LSTM layer -> Attention Layer -> LSTM layer -> Dense
-            # -------------------------------------------------------------------    -------------------
-            #                                   Encoder                                     Decoder
-
-            self.hparams = hparams
-
-            # define the input
-            self.encoder_inputs = tf.placeholder(tf.int32, [None, hparams['max_sentence_length']], 'inputs')
-            self.is_training = tf.placeholder(tf.bool, [], 'is_training')
-
-            batch_size = tf.shape(self.encoder_inputs)[0]
-
-            # Embedding
-            embedding_encoder = tf.get_variable(
-                "embedding_encoder", [hparams['src_vocab_size'], hparams['embedding_size']])
-            # Look up embedding:
-            #   encoder_inputs: [batch_size, max_time]
-            #   encoder_emb_inp: [batch_size, max_time, embedding_size]
-            self.encoder_emb_inp = tf.nn.embedding_lookup(embedding_encoder, self.encoder_inputs)
-
-            # Build three Convolutional layers
-
-            conv_input = tf.expand_dims(self.encoder_emb_inp,3)
-
-            #First convolutional layer applies a 5x1 kernel to the input and apllies zero padding to keep the input dimensions
-            conv1 = tf.layers.conv2d(inputs=conv_input,
-                                    filters = 1,
-                                    kernel_size= [5,1],
-                                    padding = 'same',
-                                    activation= tf.nn.relu)
-
-            # Second convolutional layer applues a 5x1 kernel to the input and applies zero padding to keep the input dimensions
-
-            conv2 = tf.layers.conv2d(inputs=conv1,
-                                    filters = 1,
-                                    kernel_size= [5,1],
-                                    padding = 'same',
-                                    activation= tf.nn.relu)
-
-            # Third convolutional layer applues a 5x1 kernel to the input and applies zero padding to keep the input dimensions
-
-            conv3 = tf.layers.conv2d(inputs=conv2,
-                                    filters=1,
-                                    kernel_size=[5, 1],
-                                    padding='same',
-                                    activation=tf.nn.relu)
-
-            encoder_input = tf.reshape(conv3,[-1,100,512])
-
-
-            # Build RNN cell
-            encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
-            # Run Dynamic RNN
-            #   encoder_outputs: [max_time, batch_size, num_units]
-            #   encoder_state: [batch_size, num_units]
-            self.encoder_outputs, encoder_state = tf.nn.dynamic_rnn(encoder_cell,
-                                                                    encoder_input,
-                                                                    sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
-                                                                    dtype=tf.float32,
-                                                                    time_major=False)
-
-            # Add attention mechanism
-
+        # Attention
+        if mode & TTS_Mode.ATTENTION:
             attention_mechanism = tf.contrib.seq2seq.BahdanauAttention()
-
-            # Build RNN cell
-            # Helper
-            self.target_spectograms = tf.placeholder(tf.float32,
-                                                     [None, hparams['max_output_length'], hparams['frequency_bins']])
-
-            # Decoder
-            # self.global_step_tensor = tf.Variable(10, trainable=False, name='global_step')
-
-            decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
-            projection_layer = tf.layers.Dense(hparams['frequency_bins'], use_bias=False)
-            training_helper = tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
-                                                                [hparams['max_output_length']],
-                                                                # TODO: adjust to batch size
-                                                                time_major=False)
-            inference_helper = RegressionHelper(batch_size,
-                                                self.hparams['frequency_bins'],
-                                                hparams['max_output_length'])
-
-            # helper = tf.cond(self.is_training,
-            #                  lambda: tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
-            #                                                            [hparams['max_output_length']],
-            #                                                            time_major=False),
-            #                  lambda: RegressionHelper(batch_size, hparams['frequency_bins'],
-            #                                           hparams['max_output_length']))
-
-            training_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
-                                                               training_helper,
-                                                               encoder_state,
-                                                               output_layer=projection_layer)
-
-            inference_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
-                                                                inference_helper,
-                                                                encoder_state,
-                                                                output_layer=projection_layer)
-
-            # Dynamic decoding
-            self.inference_outputs = tf.contrib.seq2seq.dynamic_decode(inference_decoder)
-            self.training_outputs = tf.contrib.seq2seq.dynamic_decode(training_decoder)
-
-            # Optimization
-            inference_spectograms = self.inference_outputs[0].rnn_output
-            training_spectograms = self.training_outputs[0].rnn_output
-            # target_spectograms = dataset_iterator.target_spectograms
-            self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
-
-            global_step = tf.Variable(0, trainable=False)
-            starter_learning_rate = hparams['learning_rate']
-            learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-                                                       1, 0.5, staircase=True)
-
-            self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.train_loss, global_step=global_step)
-
-            self.session = tf.Session()
-            init = tf.global_variables_initializer()
-            self.session.run(init)
-        elif mode == "tacotron-2":
+        else:
             pass
+
+
+        # Decoder
+        # self.global_step_tensor = tf.Variable(10, trainable=False, name='global_step')
+
+        decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_encoder_lstm_cells'])
+        projection_layer = tf.layers.Dense(hparams['frequency_bins'], use_bias=False)
+        training_helper = tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
+                                                            tf.fill([batch_size], hparams['max_output_length']),
+                                                            time_major=False)
+        inference_helper = RegressionHelper(batch_size,
+                                            self.hparams['frequency_bins'],
+                                            hparams['max_output_length'])
+
+        # helper = tf.cond(self.is_training,
+        #                  lambda: tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
+        #                                                            [hparams['max_output_length']],
+        #                                                            time_major=False),
+        #                  lambda: RegressionHelper(batch_size, hparams['frequency_bins'],
+        #                                           hparams['max_output_length']))
+
+        training_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
+                                                           training_helper,
+                                                           encoder_state,
+                                                           output_layer=projection_layer)
+
+        inference_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
+                                                            inference_helper,
+                                                            encoder_state,
+                                                            output_layer=projection_layer)
+
+        # Dynamic decoding
+        self.inference_outputs = tf.contrib.seq2seq.dynamic_decode(inference_decoder)
+        self.training_outputs = tf.contrib.seq2seq.dynamic_decode(training_decoder)
+
+        # Optimization
+        inference_spectograms = self.inference_outputs[0].rnn_output
+        training_spectograms = self.training_outputs[0].rnn_output
+        # target_spectograms = dataset_iterator.target_spectograms
+        self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
+
+        global_step = tf.Variable(0, trainable=False)
+        starter_learning_rate = hparams['learning_rate']
+        learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
+                                                   10000, 0.96, staircase=True)
+
+        self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.train_loss, global_step=global_step)
+
+        self.session = tf.Session()
+        init = tf.global_variables_initializer()
+        self.session.run(init)
+
 
     def conv_encoder(self, conv_input,number_conv_layers,is_training, kernel_size = (5,), channels = 512,activation = tf.nn.relu ):
         """

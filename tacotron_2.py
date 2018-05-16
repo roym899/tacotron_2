@@ -1,6 +1,6 @@
 # Tacotron 2 Main File
 import dataset
-from tacotron.model import TTS
+from tacotron.model import TTS, TTS_Mode
 import tacotron
 import os
 import numpy as np
@@ -53,7 +53,13 @@ if not os.path.exists(local_paths.DATASET_PATH + "sequence.npy") or\
 # # Load dataset
 training_sequences, training_spectograms = tacotron.utils.load_dataset(local_paths.DATASET_PATH)
 
-improved_tacotron_2_model = TTS(hparams, "basic")
+### Setup the network mode
+# Examples (all BASIC components are always enabled/cannot be disabled)
+# Just add convolution: mode = TTS_MODE.CONVOLUTIONAL
+# Combine Convoluition and 2 Layer LSTM: mode = TTS_MODE.CONVOLUTIONAL | TTS_MODE.TWO_LSTM_DECODER
+mode = TTS_Mode.BASIC | TTS_Mode.CONVOLUTIONAL
+
+improved_tacotron_2_model = TTS(hparams, mode)
 
 # limit the dataset such that the model still runs
 training_sequences = training_sequences[0:500,:]
