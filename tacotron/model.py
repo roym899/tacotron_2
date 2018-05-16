@@ -34,7 +34,8 @@ class TTS(object):
         self.hparams = hparams
 
         # define the input
-        self.encoder_inputs = tf.placeholder(tf.int32, [None, hparams['max_sentence_length']], 'inputs')
+        with tf.name_scope('inputs'):
+            self.encoder_inputs = tf.placeholder(tf.int32, [None, hparams['max_sentence_length']], 'inputs')
         self.is_training = tf.placeholder(tf.bool, [], 'is_training')
 
         batch_size = tf.shape(self.encoder_inputs)[0]
@@ -112,6 +113,7 @@ class TTS(object):
         training_spectograms = self.training_outputs[0].rnn_output
         # target_spectograms = dataset_iterator.target_spectograms
         self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
+        tf.summary.scalar('train loss', self.train_loss)
 
         global_step = tf.Variable(0, trainable=False)
         starter_learning_rate = hparams['learning_rate']
@@ -184,8 +186,17 @@ class TTS(object):
         counter = 0
         next_image_loss = 0
         test = 0
+        epochs = 0
+        merged = tf.summary.merge_all()
+        with tf.Session() as sess:
+            writer = tf.summary.FileWriter("/tmp",sess.graph)
+
         while loss>0:
-            loss, opt = self.session.run([self.train_loss, self.optimizer], feed_dict={self.encoder_inputs: np.expand_dims(training_sequence,0), self.target_spectograms: training_spectogram, self.is_training:True})
+            summary, loss, opt = self.session.run([merged, self.train_loss, self.optimizer], feed_dict={self.encoder_inputs: np.expand_dims(training_sequence,0), self.target_spectograms: training_spectogram, self.is_training:True})
+            writer.add_summary(summary, epochs)
+            epochs += 1
+            if epochs == 10:
+                break
             print("Loss: {}".format(loss))
             counter += 1
             if loss < next_image_loss or counter > 500:
