@@ -16,8 +16,8 @@ import local_paths
 # Examples (all BASIC components are always enabled/cannot be disabled)
 # Just add convolution: mode = TTS_MODE.CONVOLUTIONAL
 # Combine Convoluition and 2 Layer LSTM: mode = TTS_MODE.CONVOLUTIONAL | TTS_MODE.TWO_LSTM_DECODER
-mode = TTS_Mode.TWO_LSTM_DECODER
-
+mode = TTS_Mode.BIDIRECTIONAL_LSTM_ENCODER
+# mode = TTS_Mode.BASIC
 # activate/deactivate test mode, will skip the dataset loading
 test = True
 
@@ -27,8 +27,7 @@ if test:
     hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
     hparams['embedding_size'] = 100
     hparams['max_sentence_length'] = 80
-    hparams['basic_encoder_lstm_cells'] = 512
-    hparams['basic_decoder_lstm_cells'] = 256
+    hparams['basic_lstm_cells'] = 512
     hparams['fftsize'] = 2048
     hparams['hops'] = 2048 // 8
     hparams['frequency_bins'] = 128
