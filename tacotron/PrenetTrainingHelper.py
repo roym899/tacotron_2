@@ -69,12 +69,13 @@ class PrenetTrainingHelper(Helper):
 
   def initialize(self, name=None):
     with ops.name_scope(name, "TrainingHelperInitialize"):
-      finished = math_ops.equal(0, self._sequence_length)
-      all_finished = math_ops.reduce_all(finished)
-      next_inputs = control_flow_ops.cond(
-          all_finished, lambda: self._zero_inputs,
-          lambda: nest.map_structure(lambda inp: inp.read(0), self._input_tas))
-      return (finished, next_inputs)
+      return (tf.tile([False], [self._batch_size]), tf.zeros([self._batch_size, self.pre_net[0].units]))
+      # finished = math_ops.equal(0, self._sequence_length)
+      # all_finished = math_ops.reduce_all(finished)
+      # next_inputs = control_flow_ops.cond(
+      #     all_finished, lambda: self._zero_inputs,
+      #     lambda: nest.map_structure(lambda inp: inp.read(0), self._input_tas))
+      # return (finished, next_inputs)
 
   def sample(self, time, outputs, name=None, **unused_kwargs):
     with ops.name_scope(name, "TrainingHelperSample", [time, outputs]):
