@@ -180,8 +180,23 @@ class TTS(object):
         # Optimization
         inference_spectograms = self.inference_outputs[0].rnn_output
         training_spectograms = self.training_outputs[0].rnn_output
+
+        if mode & TTS_Mode.POSTNET:
+            residual = self.conv_encoder(training_spectograms, hparams['number_conv_layers_postnet'],
+                                              hparams['is_Training'], activation=tf.nn.tanh)
+            project_residual = tf.layers.dense(residual, hparams['frequency_bins'], activation=tf.nn.relu)
+            after_spectograms = project_residual + training_spectograms
+
+            # summed MSE from before and after the post-net
+            self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, after_spectograms) +\
+                              tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
+
+            inference_results = inference_spectograms + project_residual
+        else:
+            self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
+
         # target_spectograms = dataset_iterator.target_spectograms
-        self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
+
         tf.summary.scalar('train loss', self.train_loss)
 
         global_step = tf.Variable(0, trainable=False)
@@ -215,8 +230,11 @@ class TTS(object):
             batched_output = tf.layers.batch_normalization(conv_output,training=is_training)
             activated_output = activation(batched_output)
             conv_output = activated_output
-        conv_shape = conv_output.get_shape().as_list()
-        conv_output = tf.reshape(conv_output,[-1,conv_shape[1],conv_shape[2]])
+        # conv_shape = conv_output.get_shape().as_list()
+        # if conv_shape[1] is None:
+        #     conv_output = tf.reshape(conv_output,[-1,-1,conv_shape[2]])
+        # else:
+        #     conv_output = tf.reshape(conv_output,[-1,conv_shape[1],conv_shape[2]])
         return conv_output
 
 
