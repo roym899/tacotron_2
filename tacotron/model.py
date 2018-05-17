@@ -108,11 +108,11 @@ class TTS(object):
             else:
                 decoder_initial_state = list()
                 c = encoder_state_output[0]
-                c1 = c[:,0:hparams['basic_lstm_cells']]
-                c2 = c[:,hparams['basic_lstm_cells']:]
+                c1 = c[:,0:hparams['basic_lstm_cells']//2]
+                c2 = c[:,hparams['basic_lstm_cells']//2:]
                 h = encoder_state_output[1]
-                h1 = h[:,0:hparams['basic_lstm_cells']]
-                h2 = h[:,hparams['basic_lstm_cells']:]
+                h1 = h[:,0:hparams['basic_lstm_cells']//2]
+                h2 = h[:,hparams['basic_lstm_cells']//2:]
                 decoder_initial_state.append(tf.contrib.rnn.LSTMStateTuple(c1, h1))
                 decoder_initial_state.append(tf.contrib.rnn.LSTMStateTuple(c2, h2))
                 decoder_initial_state = tuple(decoder_initial_state)
