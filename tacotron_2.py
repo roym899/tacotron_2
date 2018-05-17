@@ -17,7 +17,7 @@ import local_paths
 # Just add convolution: mode = TTS_MODE.CONVOLUTIONAL
 # Combine Convoluition and 2 Layer LSTM: mode = TTS_MODE.CONVOLUTIONAL | TTS_MODE.TWO_LSTM_DECODER
 
-mode = TTS_Mode.TWO_LSTM_DECODER | TTS_Mode.PRENET
+mode = TTS_Mode.ALL
 
 # activate/deactivate test mode, will skip the dataset loading
 test = True
@@ -31,11 +31,11 @@ if test:
     hparams['basic_lstm_cells'] = 512
     hparams['fftsize'] = 2048
     hparams['hops'] = 2048 // 8
-    hparams['frequency_bins'] = 128
-    hparams['prenet_cells'] = 128 # currently only works for same number as frequency_bins, for whatever reason...
+    hparams['frequency_bins'] = 256
+    hparams['prenet_cells'] = 32 # currently only works for same number as frequency_bins, for whatever reason...
     hparams['max_output_length'] = 120
     hparams['max_gradient_norm'] = 5
-    hparams['learning_rate'] = 10e-3
+    hparams['learning_rate'] = 1e-4
     hparams['batch_size'] = 64
     hparams['number_conv_layers_encoder'] = 3
     hparams['is_Training'] = True
@@ -45,8 +45,7 @@ else:
     hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
     hparams['embedding_size'] = 512
     hparams['max_sentence_length'] = 150
-    hparams['basic_encoder_lstm_cells'] = 512
-    hparams['basic_decoder_lstm_cells'] = 256
+    hparams['basic_encoder_lstm_cells'] = 256
     hparams['fftsize'] = 2048
     hparams['hops'] = 2048 // 8
     hparams['frequency_bins'] = 128
