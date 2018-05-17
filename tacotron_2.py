@@ -17,7 +17,7 @@ import local_paths
 # Just add convolution: mode = TTS_MODE.CONVOLUTIONAL
 # Combine Convoluition and 2 Layer LSTM: mode = TTS_MODE.CONVOLUTIONAL | TTS_MODE.TWO_LSTM_DECODER
 
-mode = TTS_Mode.TWO_LSTM_DECODER | TTS_Mode.PRENET
+mode = TTS_Mode.CONVOLUTIONAL | TTS_Mode.TWO_LSTM_DECODER | TTS_Mode.POSTNET
 
 # activate/deactivate test mode, will skip the dataset loading
 test = True
@@ -38,6 +38,7 @@ if test:
     hparams['learning_rate'] = 10e-3
     hparams['batch_size'] = 64
     hparams['number_conv_layers_encoder'] = 3
+    hparams['number_conv_layers_postnet'] = 5
     hparams['is_Training'] = True
 else:
     # BATCH PARAMS
@@ -54,6 +55,7 @@ else:
     hparams['learning_rate'] = 10e-3
     hparams['batch_size'] = 64
     hparams['number_conv_layers_encoder'] = 3
+    hparams['number_conv_layers_postnet'] = 5
     hparams['is_Training'] = True
     hparams['prenet_cells'] = 256
 
