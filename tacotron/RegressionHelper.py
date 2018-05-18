@@ -43,7 +43,10 @@ class RegressionHelper(Helper):
 
     def initialize(self, name=None):
         """Returns `(initial_finished, initial_inputs)`."""
-        return (tf.tile([False], [self._batch_size]), tf.zeros([self._batch_size, self.pre_net[0].units]))
+        if self.pre_net is None:
+            return (tf.tile([False], [self._batch_size]), tf.zeros([self._batch_size, self.frequency_bins]))
+        else:
+            return (tf.tile([False], [self._batch_size]), tf.zeros([self._batch_size, self.pre_net[0].units]))
 
     def sample(self, time, outputs, state, name=None):
         """Returns `sample_ids`."""

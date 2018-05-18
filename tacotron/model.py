@@ -80,13 +80,6 @@ class TTS(object):
                                                  [None, hparams['max_output_length'], hparams['frequency_bins']])
 
 
-        # Attention
-        if mode & TTS_Mode.ATTENTION:
-            # attention_mechanism = tf.contrib.seq2seq.BahdanauAttention()
-            pass
-        else:
-            pass
-
 
         # Decoder
         # self.global_step_tensor = tf.Variable(10, trainable=False, name='global_step')
@@ -133,6 +126,15 @@ class TTS(object):
             else:
                 decoder_initial_state = encoder_state_output
 
+        if mode & TTS_Mode.ATTENTION:
+            attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(hparams['attention_cells'],
+                                                                       self.encoder_outputs,
+                                                                       memory_sequence_length=tf.fill([batch_size],hparams['max_sentence_length']))
+            decoder_cell = tf.contrib.seq2seq.AttentionWrapper(decoder_cell,
+                                                              attention_mechanism,
+                                                              attention_layer_size = hparams['attention_cells'])
+            zerostate = decoder_cell.zero_state(dtype=tf.float32,batch_size=batch_size)
+            decoder_initial_state = zerostate.clone(cell_state=decoder_initial_state)
 
         if mode & TTS_Mode.PRENET:
             pre = []
