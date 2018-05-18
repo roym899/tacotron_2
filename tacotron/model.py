@@ -257,7 +257,7 @@ class TTS(object):
         training_spectogram = wavenet.calculate_stft(audio, fftsize, hops)
         training_spectogram = abs(training_spectogram) ** 2
         # training_spectogram = training_spectogram[0:self.hparams['max_output_length'],:]
-        training_spectogram[:, self.hparams['frequency_bins']:-1] = 0
+        training_spectogram[:, self.hparams['frequency_bins']:] = 0
         training_spectogram_test =  np.copy(training_spectogram)
         rec_audio = wavenet.reconstruct_signal(training_spectogram_test, fftsize, hops, 100)
         max_value = np.max(abs(rec_audio))
@@ -265,9 +265,14 @@ class TTS(object):
             rec_audio = rec_audio / max_value
         audio = wavenet.save_audio(rec_audio, 16000, local_paths.RECONSTRUCTED_AUDIO_OUTPUT)
 
-        training_spectogram = training_spectogram[0:self.hparams['max_output_length'], 0:self.hparams['frequency_bins']]/1000
+        training_spectogram = training_spectogram[0:self.hparams['max_output_length'], 0:self.hparams['frequency_bins']]/self.hparams['scale_factor']
         # training_spectogram = np.log(training_spectogram)
-        # training_spectogram = np.pad(training_spectogram, ((0,self.hparams['max_output_length']-training_spectogram.shape[0]), (0,0)), 'constant')
+        if self.hparams['max_output_length']-training_spectogram.shape[0] > 0:
+            training_spectogram = np.pad(training_spectogram, ((0,self.hparams['max_output_length']-training_spectogram.shape[0]), (0,0)), 'constant')
+
+        training_spectogram_test =  np.copy(training_spectogram)
+        training_spectogram_test = np.pad(training_spectogram_test, ((0,0), (0,fftsize-self.hparams['frequency_bins'])), 'constant')
+
         # training_spectogram = (training_spectogram - np.min(training_spectogram) ) / (np.max(training_spectogram)-np.min(training_spectogram))
         training_spectogram = np.expand_dims(training_spectogram, 0)
         print("Min: {}, Max: {}".format(np.min(training_spectogram), np.max(training_spectogram)))
@@ -300,7 +305,7 @@ class TTS(object):
                 # next_image_loss = loss - 1
                 counter = 0
 
-                training_spectogram_test[:, 0:self.hparams['frequency_bins']] = post_res[0].rnn_output[0,:,:]*1000
+                training_spectogram_test[:, 0:self.hparams['frequency_bins']] = post_res[0].rnn_output[0,:,:]*self.hparams['scale_factor']
                 rec_audio = wavenet.reconstruct_signal(training_spectogram_test, fftsize, hops, 100)
                 max_value = np.max(abs(rec_audio))
                 if max_value > 1.0:
@@ -308,11 +313,13 @@ class TTS(object):
 
                 audio = wavenet.save_audio(rec_audio, 16000, local_paths.TEST_PATTERN.format(test))
                 test += 1
+            if epochs>500:
+                return
+
 
 
     def train(self, training_sequences, training_spectograms):
         loss = np.Inf
-        counter = 0
         next_image_loss = 0
         test = 0
         test_sentence = training_sequences[0,:]
@@ -321,6 +328,7 @@ class TTS(object):
         plt.show()
         batch_size = self.hparams['batch_size']
         counter = 0
+        training_spectograms = training_spectograms/self.hparams['scale_factor']
         while loss>0:
             data = (training_sequences, training_spectograms)
             idx = 0
@@ -337,22 +345,30 @@ class TTS(object):
 
             print("Loss: {}".format(loss))
             counter += 1
-            if loss < next_image_loss or counter > 50:
-                post_res = self.session.run(self.inference_outputs, feed_dict={self.encoder_inputs: np.expand_dims(test_sentence, 0), self.is_training: False})
-
-                print("Min: {}, Max: {}".format(np.min(post_res[0].rnn_output[0,:,:]), np.max(post_res[0].rnn_output[0,:,:])))
-                plt.imshow(post_res[0].rnn_output[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
-                plt.show()
-                # next_image_loss = loss - 1
+            if loss < next_image_loss or counter > 10:
+                self.predict("Acting out of panic, before considering alternatives, often leads to poor, sometimes downright disastrous, decisions." , local_paths.TEST_PATTERN.format(test))
                 counter = 0
+                test += 1
 
 
 
-    def predict(self, text):
+    def predict(self, text, outpath):
+        # predict the spectogram
         input = tacotron.utils.text_to_sequence(text, self.hparams['max_sentence_length'])
         res = self.session.run(self.inference_outputs, feed_dict={self.encoder_inputs: np.expand_dims(input,0), self.is_training:False})
-        # test_out = res[0,:,:]
-        # print('global_step: %s' % tf.train.global_step(self.session, self.global_step_tensor))
 
-        # TODO: convert output to audio using griffith lim
-        #print(res[0].rnn_output[0,0,180])
+        # add the 0 padding to the spectogram
+        spectogram = np.zeros([self.hparams['max_output_length'], self.hparams['fftsize']])
+        spectogram[:,0:self.hparams['frequency_bins']] = self.hparams['scale_factor']*res[0].rnn_output[0,:,:]
+
+        # plot the spectogram
+        plt.imshow(res[0].rnn_output[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
+        plt.show()
+
+        # convert to audiofile
+        rec_audio = wavenet.reconstruct_signal(spectogram, self.hparams['fftsize'], self.hparams['hops'], 100)
+        max_value = np.max(abs(rec_audio))
+        if max_value > 1.0:
+            rec_audio = rec_audio / max_value
+
+        audio = wavenet.save_audio(rec_audio, 16000, outpath)

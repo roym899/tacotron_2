@@ -18,13 +18,18 @@ def text_to_sequence(text, length):
   return sequence
 
 
-def process_data(dataset_path, hparams):
+def process_data(dataset_path, hparams, max_dataset_size):
   print("Processing data...")
   with open(os.path.join(dataset_path, 'prompts.data')) as f:
     lines = f.readlines()
     num = len(lines)
-    input_sequence = np.zeros(shape=(num, hparams['max_sentence_length']))
-    target_spectogram = np.zeros(shape=(num, hparams['max_output_length'], hparams['frequency_bins']))
+
+    files = num // max_dataset_size + 1
+    file_counter = 0
+    processed = 0
+
+    input_sequence = np.zeros(shape=(max_dataset_size, hparams['max_sentence_length']))
+    target_spectogram = np.zeros(shape=(max_dataset_size, hparams['max_output_length'], hparams['frequency_bins']))
 
     for index, line in enumerate(lines):
       # line structure: ( wav_name "text" )
@@ -41,23 +46,37 @@ def process_data(dataset_path, hparams):
       spectogram = np.pad(spectogram,
                           ((0, hparams['max_output_length'] - spectogram.shape[0]), (0, 0)),
                           'constant')
-      spectogram = wavenet.calculate_mag(spectogram)
+      spectogram = wavenet.calculate_mag(spectogram, hparams['frequency_bins'])
       #spectogram = np.reshape(spectogram, (1, np.prod(np.shape(spectogram))))
-      target_spectogram[index] = spectogram
+      target_spectogram[processed] = spectogram
 
       # convert text to sequence
       sequence = text_to_sequence(text, hparams['max_sentence_length'])
-      input_sequence[index] = sequence
+      input_sequence[processed] = sequence
 
       print("Processing data... {}/{}".format(index, len(lines)))
+      processed += 1
+      if processed >= max_dataset_size:
+        if file_counter+max_dataset_size > num:
+          end = num
+        else:
+          end = file_counter+1000
+        np.save(os.path.join(dataset_path, 'sequence_{}.npy'.format(file_counter)), input_sequence)
+        np.save(os.path.join(dataset_path, 'spectogram_{}.npy'.format(file_counter)), target_spectogram)
 
-    np.save(os.path.join(dataset_path, 'sequence.npy'), input_sequence)
-    np.save(os.path.join(dataset_path, 'spectogram.npy'), target_spectogram)
+        if num-index > max_dataset_size:
+          next_size = max_dataset_size
+        else:
+          next_size = num-index
+        input_sequence = np.zeros(shape=(next_size, hparams['max_sentence_length']))
+        target_spectogram = np.zeros(shape=(next_size, hparams['max_output_length'], hparams['frequency_bins']))
+        processed = 0
+        file_counter += 1
 
 
-def load_dataset(dataset_path):
-  sequence = np.load(os.path.join(dataset_path, 'sequence.npy'))
-  spectogram = np.load(os.path.join(dataset_path, 'spectogram.npy'))
+def load_dataset(dataset_path, id):
+  sequence = np.load(os.path.join(dataset_path, 'sequence_{}.npy'.format(id)))
+  spectogram = np.load(os.path.join(dataset_path, 'spectogram_{}.npy'.format(id)))
 
   # check the dimension
   assert sequence.shape[0] == spectogram.shape[0]
