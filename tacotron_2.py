@@ -29,7 +29,7 @@ import local_paths
 mode = TTS_Mode.ALL ^ TTS_Mode.ATTENTION
 
 # activate/deactivate test mode, will skip the dataset loading
-test = True
+test = False
 
 databatch_size = 1000
 
@@ -89,12 +89,12 @@ if test is False:
         # process the data
         tacotron.utils.process_data(local_paths.DATASET_PATH, hparams, databatch_size)
     # Load dataset
-    training_sequences, training_spectograms = tacotron.utils.load_dataset(local_paths.DATASET_PATH, 0)
+    # training_sequences, training_spectograms = tacotron.utils.load_dataset(local_paths.DATASET_PATH, 0)
 
     # limit the dataset such that the model still runs
-    training_sequences = training_sequences[0:100,:]
-    training_spectograms = training_spectograms[0:100,:]
-    improved_tacotron_2_model.train(training_sequences, training_spectograms)
+    # training_sequences = training_sequences[0:100,:]
+    # training_spectograms = training_spectograms[0:100,:]
+    improved_tacotron_2_model.train(local_paths.DATASET_PATH)
 else:
     improved_tacotron_2_model.train_test()
 # improved_tacotron_2_model.train_test()
