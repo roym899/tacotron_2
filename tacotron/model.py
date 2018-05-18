@@ -350,7 +350,7 @@ class TTS(object):
 
         ### Determine Number of available dataset
         directory_files = os.listdir(dataset_path)
-        number_of_files = len(directory_files)
+        number_of_files = len(directory_files)//2
 
         batch_size = self.hparams['batch_size']
         counter = 0
@@ -360,8 +360,14 @@ class TTS(object):
             rng = np.random.choice(number_of_files,2,replace=False)
             training_sequences,training_spectograms = tacotron.utils.load_dataset(dataset_path, rng[0])
             training_sequences_2, training_spectograms_2 = tacotron.utils.load_dataset(dataset_path,rng[1])
-            training_sequences = np.append(training_sequences,training_sequences_2)
-            training_sequences = np.append(training_spectograms,training_spectograms_2)
+            training_sequences = np.append(training_sequences,training_sequences_2,0)
+            training_spectograms = np.append(training_spectograms,training_spectograms_2,0)
+
+            s = np.arange(training_sequences.shape[0])
+            np.random.shuffle(s)
+            training_sequences = np.copy(training_sequences[s])
+            training_spectograms = np.copy(training_spectograms[s])
+            
 
             data = (training_sequences, training_spectograms)
             idx = 0
