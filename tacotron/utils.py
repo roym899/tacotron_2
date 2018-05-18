@@ -43,6 +43,8 @@ def process_data(dataset_path, hparams, max_dataset_size):
       # convert audio to spectogram
       audio = wavenet.load_audio(os.path.join(dataset_path, 'wavn', wav_name + '.wav'), expected_samplerate=16000)
       spectogram = wavenet.calculate_stft(audio, hparams['fftsize'], hparams['hops'])
+      if hparams['max_output_length'] - spectogram.shape[0] > 0:
+        continue
       spectogram = np.pad(spectogram,
                           ((0, hparams['max_output_length'] - spectogram.shape[0]), (0, 0)),
                           'constant')

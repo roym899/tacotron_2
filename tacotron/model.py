@@ -185,18 +185,37 @@ class TTS(object):
         training_spectograms = self.training_outputs[0].rnn_output
 
         if mode & TTS_Mode.POSTNET:
-            residual = self.conv_encoder(training_spectograms, hparams['number_conv_layers_postnet'],
-                                              hparams['is_Training'], activation=tf.nn.tanh)
-            project_residual = tf.layers.dense(residual, hparams['frequency_bins'], activation=tf.nn.relu)
-            after_spectograms = project_residual + training_spectograms
+            post = []
+            normalization = []
+            residual_projection = tf.layers.Dense(hparams['frequency_bins'], activation=tf.nn.relu)
+            for i in range(hparams['number_conv_layers_postnet']):
+                post.append(tf.layers.Conv1D(filters=512,kernel_size=(5,),activation=None,padding='same'))
+                normalization.append(tf.layers.BatchNormalization())
+
+            conv_out_inference = inference_spectograms
+            conv_out_training = training_spectograms
+
+            for i in range(hparams['number_conv_layers_postnet']):
+                conv_out_inference = post[i](conv_out_inference)
+                conv_out_inference = normalization[i](conv_out_inference, self.is_training)
+                conv_out_inference = tf.nn.tanh(conv_out_inference)
+                conv_out_training = post[i](conv_out_training)
+                conv_out_training = normalization[i](conv_out_training, self.is_training)
+                conv_out_training = tf.nn.tanh(conv_out_training)
+
+            residual_inference = residual_projection(conv_out_inference)
+            residual_training = residual_projection(conv_out_training)
+
+            after_spectograms = residual_training + training_spectograms
 
             # summed MSE from before and after the post-net
             self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, after_spectograms) +\
                               tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
 
-            inference_results = inference_spectograms + project_residual
+            self.inference_results = inference_spectograms + residual_inference
         else:
             self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
+            self.inference_results = inference_spectograms
 
         # target_spectograms = dataset_iterator.target_spectograms
 
@@ -205,7 +224,7 @@ class TTS(object):
         global_step = tf.Variable(0, trainable=False)
         starter_learning_rate = hparams['learning_rate']
         learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-                                                   100, 0.96, staircase=True)
+                                                   1000, 0.96, staircase=True)
 
         self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.train_loss, global_step=global_step)
 
@@ -246,9 +265,9 @@ class TTS(object):
         predict_sentence = "Your father may."
         input = tacotron.utils.text_to_sequence(training_sentence, self.hparams['max_sentence_length'])
         predict_input = tacotron.utils.text_to_sequence(predict_sentence, self.hparams['max_sentence_length'])
-        pre_res = self.session.run(self.inference_outputs, feed_dict={self.encoder_inputs: np.expand_dims(input,0), self.is_training:False})
+        pre_res = self.session.run(self.inference_results, feed_dict={self.encoder_inputs: np.expand_dims(input,0), self.is_training:False})
 
-        plt.imshow(pre_res[0].rnn_output[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
+        plt.imshow(pre_res[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
         plt.show()
 
         fftsize = 2048
@@ -276,7 +295,7 @@ class TTS(object):
         # training_spectogram = (training_spectogram - np.min(training_spectogram) ) / (np.max(training_spectogram)-np.min(training_spectogram))
         training_spectogram = np.expand_dims(training_spectogram, 0)
         print("Min: {}, Max: {}".format(np.min(training_spectogram), np.max(training_spectogram)))
-        plt.imshow(training_spectogram[0, :, :], cmap='hot', interpolation='nearest',norm=matplotlib.colors.Normalize())
+        plt.imshow(training_spectogram[0,:,:], cmap='hot', interpolation='nearest',norm=matplotlib.colors.Normalize())
         plt.show()
         training_sequence = tacotron.utils.text_to_sequence(training_sentence, self.hparams['max_sentence_length'])
         loss = np.Inf
@@ -297,15 +316,15 @@ class TTS(object):
             print("Loss: {}".format(loss))
             counter += 1
             if loss < next_image_loss or counter > 100:
-                post_res = self.session.run(self.inference_outputs, feed_dict={self.encoder_inputs: np.expand_dims(predict_input, 0), self.is_training: False})
+                post_res = self.session.run(self.inference_results, feed_dict={self.encoder_inputs: np.expand_dims(predict_input, 0), self.is_training: False})
 
-                print("Min: {}, Max: {}".format(np.min(post_res[0].rnn_output[0,:,:]), np.max(post_res[0].rnn_output[0,:,:])))
-                plt.imshow(post_res[0].rnn_output[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
+                print("Min: {}, Max: {}".format(np.min(post_res), np.max(post_res)))
+                plt.imshow(post_res[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
                 plt.show()
                 # next_image_loss = loss - 1
                 counter = 0
 
-                training_spectogram_test[:, 0:self.hparams['frequency_bins']] = post_res[0].rnn_output[0,:,:]*self.hparams['scale_factor']
+                training_spectogram_test[:, 0:self.hparams['frequency_bins']] = post_res*self.hparams['scale_factor']
                 rec_audio = wavenet.reconstruct_signal(training_spectogram_test, fftsize, hops, 100)
                 max_value = np.max(abs(rec_audio))
                 if max_value > 1.0:
@@ -313,7 +332,7 @@ class TTS(object):
 
                 audio = wavenet.save_audio(rec_audio, 16000, local_paths.TEST_PATTERN.format(test))
                 test += 1
-            if epochs>500:
+            if epochs>5000:
                 return
 
 
