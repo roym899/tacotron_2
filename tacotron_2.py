@@ -22,39 +22,43 @@ mode = TTS_Mode.ALL
 # activate/deactivate test mode, will skip the dataset loading
 test = True
 
+databatch_size = 1000
+
 if test:
     # TEST PARAMS
     hparams = {}
     hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
-    hparams['embedding_size'] = 100
+    hparams['embedding_size'] = 512
     hparams['max_sentence_length'] = 80
     hparams['basic_lstm_cells'] = 512
     hparams['fftsize'] = 2048
     hparams['hops'] = 2048 // 8
     hparams['frequency_bins'] = 256
-    hparams['prenet_cells'] = 32 # currently only works for same number as frequency_bins, for whatever reason...
-    hparams['max_output_length'] = 120
+    hparams['prenet_cells'] = 32
+    hparams['max_output_length'] = 700
     hparams['max_gradient_norm'] = 5
-    hparams['learning_rate'] = 1e-4
+    hparams['learning_rate'] = 1e-3
     hparams['batch_size'] = 64
     hparams['number_conv_layers_encoder'] = 3
     hparams['is_Training'] = True
+    hparams['scale_factor'] = 1000
 else:
     # BATCH PARAMS
     hparams = {}
     hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
     hparams['embedding_size'] = 512
     hparams['max_sentence_length'] = 150
-    hparams['basic_encoder_lstm_cells'] = 256
+    hparams['basic_lstm_cells'] = 512
+    hparams['prenet_cells'] = 32
     hparams['fftsize'] = 2048
     hparams['hops'] = 2048 // 8
-    hparams['frequency_bins'] = 128
+    hparams['frequency_bins'] = 256
     hparams['max_output_length'] = 700
     hparams['learning_rate'] = 10e-3
-    hparams['batch_size'] = 64
+    hparams['batch_size'] = 16
     hparams['number_conv_layers_encoder'] = 3
     hparams['is_Training'] = True
-    hparams['prenet_cells'] = 256
+    hparams['scale_factor'] = 1000
 
 
 
@@ -65,18 +69,18 @@ if test is False:
     assert os.path.exists(local_paths.DATASET_PATH + "prompts.data"), "Missing text dataset!"
     assert os.path.exists(local_paths.DATASET_PATH + "wavn"), "Missing audio dataset!"
     # Check if it has already been processed
-    if not os.path.exists(local_paths.DATASET_PATH + "sequence.npy") or \
-            not os.path.exists(local_paths.DATASET_PATH + "spectogram.npy") or \
-            np.shape(np.load(local_paths.DATASET_PATH + "sequence.npy"))[1] != hparams['max_sentence_length'] or \
-            np.shape(np.load(local_paths.DATASET_PATH + "spectogram.npy"))[1:3] != (hparams['max_output_length'], hparams['frequency_bins']):
+    if not os.path.exists(local_paths.DATASET_PATH + "sequence_0.npy") or \
+            not os.path.exists(local_paths.DATASET_PATH + "spectogram_0.npy") or \
+            np.shape(np.load(local_paths.DATASET_PATH + "sequence_0.npy"))[1] != hparams['max_sentence_length'] or \
+            np.shape(np.load(local_paths.DATASET_PATH + "spectogram_0.npy"))[1:3] != (hparams['max_output_length'], hparams['frequency_bins']):
         # process the data
-        tacotron.utils.process_data(local_paths.DATASET_PATH, hparams)
+        tacotron.utils.process_data(local_paths.DATASET_PATH, hparams, databatch_size)
     # Load dataset
-    training_sequences, training_spectograms = tacotron.utils.load_dataset(local_paths.DATASET_PATH)
+    training_sequences, training_spectograms = tacotron.utils.load_dataset(local_paths.DATASET_PATH, 0)
 
     # limit the dataset such that the model still runs
-    training_sequences = training_sequences[0:500,:]
-    training_spectograms = training_spectograms[0:500,:]
+    training_sequences = training_sequences[0:100,:]
+    training_spectograms = training_spectograms[0:100,:]
     improved_tacotron_2_model.train(training_sequences, training_spectograms)
 else:
     improved_tacotron_2_model.train_test()
@@ -84,5 +88,5 @@ else:
 
 # TODO: save model
 
-improved_tacotron_2_model.predict("This course is fun.")
+improved_tacotron_2_model.predict("How badly lid the local roads are your father may complain.", local_paths.PREDICT_PATH)
 
