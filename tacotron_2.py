@@ -40,6 +40,7 @@ if test:
     hparams['learning_rate'] = 1e-3
     hparams['batch_size'] = 64
     hparams['number_conv_layers_encoder'] = 3
+    hparams['number_conv_layers_postnet'] = 5
     hparams['is_Training'] = True
     hparams['scale_factor'] = 1000
 else:
@@ -57,6 +58,7 @@ else:
     hparams['learning_rate'] = 10e-3
     hparams['batch_size'] = 16
     hparams['number_conv_layers_encoder'] = 3
+    hparams['number_conv_layers_postnet'] = 5
     hparams['is_Training'] = True
     hparams['scale_factor'] = 1000
 
