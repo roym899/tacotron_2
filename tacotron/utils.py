@@ -28,8 +28,13 @@ def process_data(dataset_path, hparams, max_dataset_size):
     file_counter = 0
     processed = 0
 
+    skipped_sentence = 0
+    skipped_output = 0
+
     input_sequence = np.zeros(shape=(max_dataset_size, hparams['max_sentence_length']))
     target_spectogram = np.zeros(shape=(max_dataset_size, hparams['max_output_length'], hparams['frequency_bins']))
+
+    filtered_sentences = []
 
     for index, line in enumerate(lines):
       # line structure: ( wav_name "text" )
@@ -38,12 +43,14 @@ def process_data(dataset_path, hparams, max_dataset_size):
       text = parts[1]
 
       if len(text) > hparams['max_sentence_length']:
+        skipped_sentence += 1
         continue
 
       # convert audio to spectogram
       audio = wavenet.load_audio(os.path.join(dataset_path, 'wavn', wav_name + '.wav'), expected_samplerate=16000)
       spectogram = wavenet.calculate_stft(audio, hparams['fftsize'], hparams['hops'])
       if hparams['max_output_length'] - spectogram.shape[0] < 0:
+        skipped_output += 1
         continue
       spectogram = np.pad(spectogram,
                           ((0, hparams['max_output_length'] - spectogram.shape[0]), (0, 0)),
@@ -56,7 +63,9 @@ def process_data(dataset_path, hparams, max_dataset_size):
       sequence = text_to_sequence(text, hparams['max_sentence_length'])
       input_sequence[processed] = sequence
 
-      print("Processing data... {}/{}".format(index, len(lines)))
+      filtered_sentences.append(text)
+
+      print("Processing data... {}/{} ({} skipped due to length, {} skipped due to out length)".format(index, len(lines), skipped_sentence, skipped_output))
       processed += 1
       if processed >= max_dataset_size:
         if file_counter+max_dataset_size > num:
@@ -74,6 +83,10 @@ def process_data(dataset_path, hparams, max_dataset_size):
         target_spectogram = np.zeros(shape=(next_size, hparams['max_output_length'], hparams['frequency_bins']))
         processed = 0
         file_counter += 1
+
+  with open(os.path.join(dataset_path, 'filtered_prompts.data'), "w") as file:
+    for sentence in filtered_sentences:
+      file.write("%s\n" % sentence)
 
 
 def load_dataset(dataset_path, id):

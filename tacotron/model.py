@@ -187,7 +187,7 @@ class TTS(object):
         if mode & TTS_Mode.POSTNET:
             post = []
             normalization = []
-            residual_projection = tf.layers.Dense(hparams['frequency_bins'], activation=tf.nn.relu)
+            residual_projection = tf.layers.Dense(hparams['frequency_bins'])
             for i in range(hparams['number_conv_layers_postnet']):
                 post.append(tf.layers.Conv1D(filters=512,kernel_size=(5,),activation=None,padding='same'))
                 normalization.append(tf.layers.BatchNormalization())
@@ -209,7 +209,7 @@ class TTS(object):
             after_spectograms = residual_training + training_spectograms
 
             # summed MSE from before and after the post-net
-            self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, after_spectograms) +\
+            self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, after_spectograms)/10 +\
                               tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
 
             self.inference_results = inference_spectograms + residual_inference
@@ -227,6 +227,8 @@ class TTS(object):
                                                    1000, 0.96, staircase=True)
 
         self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.train_loss, global_step=global_step)
+
+        self.saver = tf.train.Saver()
 
         self.session = tf.Session()
         init = tf.global_variables_initializer()
@@ -320,7 +322,8 @@ class TTS(object):
 
                 print("Min: {}, Max: {}".format(np.min(post_res), np.max(post_res)))
                 plt.imshow(post_res[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
-                plt.show()
+                plt.savefig(local_paths.FINAL_PATH)
+                plt.close()
                 # next_image_loss = loss - 1
                 counter = 0
 
@@ -332,7 +335,7 @@ class TTS(object):
 
                 audio = wavenet.save_audio(rec_audio, 16000, local_paths.TEST_PATTERN.format(test))
                 test += 1
-            if epochs>5000:
+            if epochs>500:
                 return
 
 
@@ -357,15 +360,18 @@ class TTS(object):
                                                         self.target_spectograms: data[1][idx:idx+batch_size,:,:],
                                                         self.is_training:True})
                 idx += batch_size
-            loss = self.session.run(self.train_loss,
-                                    feed_dict={self.encoder_inputs: training_sequences,
-                                               self.target_spectograms: training_spectograms,
-                                               self.is_training: True})
+            # loss = self.session.run(self.train_loss,
+            #                         feed_dict={self.encoder_inputs: training_sequences,
+            #                                    self.target_spectograms: training_spectograms,
+            #                                    self.is_training: True})
 
             print("Loss: {}".format(loss))
             counter += 1
-            if loss < next_image_loss or counter > 10:
-                self.predict("Acting out of panic, before considering alternatives, often leads to poor, sometimes downright disastrous, decisions." , local_paths.TEST_PATTERN.format(test))
+            if loss < next_image_loss or counter > 100:
+                self.saver.save(self.session, local_paths.CHECKPOINT_PATH, global_step=100*(test+1))
+                self.predict("Children act prematurely." , local_paths.TEST_PATTERN_CHILDREN.format(test))
+                self.predict("Your father may complain about how badly lid the local roads are." , local_paths.TEST_PATTERN_FATHER.format(test))
+                self.predict("This course is fun." , local_paths.TEST_PATTERN_COURSE.format(test))
                 counter = 0
                 test += 1
 
@@ -381,6 +387,7 @@ class TTS(object):
         spectogram[:,0:self.hparams['frequency_bins']] = self.hparams['scale_factor']*res[0].rnn_output[0,:,:]
 
         # plot the spectogram
+        print("Min: {} Max: {}".format(np.min(spectogram), np.max(spectogram)))
         plt.imshow(res[0].rnn_output[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
         plt.show()
 
