@@ -7,6 +7,8 @@ from tacotron.PrenetTrainingHelper import PrenetTrainingHelper
 import matplotlib.pyplot as plt
 import matplotlib
 import local_paths
+import os
+from random import randint
 from enum import IntFlag
 
 import random
@@ -340,18 +342,31 @@ class TTS(object):
 
 
 
-    def train(self, training_sequences, training_spectograms):
+    def train(self, dataset_path):
         loss = np.Inf
         next_image_loss = 0
         test = 0
-        test_sentence = training_sequences[0,:]
-        test_spectogram = training_spectograms[0,:,:]
-        plt.imshow(test_spectogram, cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
-        plt.show()
+
+        ### Determine Number of available dataset
+        directory_files = os.listdir(dataset_path)
+        number_of_files = len(directory_files)//2
+
         batch_size = self.hparams['batch_size']
         counter = 0
-        training_spectograms = training_spectograms/self.hparams['scale_factor']
         while loss>0:
+            ### Choose two random datasets and concatenate them
+            rng = np.random.choice(number_of_files,2,replace=False)
+            training_sequences,training_spectograms = tacotron.utils.load_dataset(dataset_path, rng[0])
+            training_sequences_2, training_spectograms_2 = tacotron.utils.load_dataset(dataset_path,rng[1])
+            training_sequences = np.append(training_sequences,training_sequences_2,0)
+            training_spectograms = np.append(training_spectograms,training_spectograms_2,0)
+
+            s = np.arange(training_sequences.shape[0])
+            np.random.shuffle(s)
+            training_sequences = np.copy(training_sequences[s])
+            training_spectograms = np.copy(training_spectograms[s])
+            training_spectograms = training_spectograms / self.hparams['scale_factor']
+
             data = (training_sequences, training_spectograms)
             idx = 0
             while idx+batch_size < data[0].shape[0]:
@@ -367,6 +382,7 @@ class TTS(object):
 
             print("Loss: {}".format(loss))
             counter += 1
+
             if loss < next_image_loss or counter > 100:
                 self.saver.save(self.session, local_paths.CHECKPOINT_PATH, global_step=100*(test+1))
                 self.predict("Children act prematurely." , local_paths.TEST_PATTERN_CHILDREN.format(test))

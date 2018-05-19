@@ -18,7 +18,7 @@ def text_to_sequence(text, length):
   return sequence
 
 
-def process_data(dataset_path, hparams, max_dataset_size):
+def process_data(dataset_path, hparams, max_dataset_size,processed_path):
   print("Processing data...")
   with open(os.path.join(dataset_path, 'prompts.data')) as f:
     lines = f.readlines()
@@ -72,8 +72,8 @@ def process_data(dataset_path, hparams, max_dataset_size):
           end = num
         else:
           end = file_counter+1000
-        np.save(os.path.join(dataset_path, 'sequence_{}.npy'.format(file_counter)), input_sequence)
-        np.save(os.path.join(dataset_path, 'spectogram_{}.npy'.format(file_counter)), target_spectogram)
+        np.save(os.path.join(processed_path, 'sequence_{}.npy'.format(file_counter)), input_sequence)
+        np.save(os.path.join(processed_path, 'spectogram_{}.npy'.format(file_counter)), target_spectogram)
 
         if num-index > max_dataset_size:
           next_size = max_dataset_size
