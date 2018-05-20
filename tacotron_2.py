@@ -1,10 +1,12 @@
 # Tacotron 2 Main File
 import dataset
+import hparameters
 from tacotron.model import TTS, TTS_Mode
 import tacotron
 import os
 import numpy as np
 import local_paths
+
 
 
 ## TODO:
@@ -26,68 +28,21 @@ import local_paths
 # Just add convolution: mode = TTS_MODE.CONVOLUTIONAL
 # Combine Convoluition and 2 Layer LSTM: mode = TTS_MODE.CONVOLUTIONAL | TTS_MODE.TWO_LSTM_DECODER
 
-mode = TTS_Mode.ALL ^ TTS_Mode.ATTENTION
+mode = TTS_Mode.ALL ^ TTS_Mode.POSTNET ^ TTS_Mode.PRENET | TTS_Mode.ATTENTION
 
-# activate/deactivate test mode, will skip the dataset loading
-test = True
+improved_tacotron_2_model = TTS(hparameters.hparams, mode)
 
-databatch_size = 1000
-
-if test:
-    # TEST PARAMS
-    hparams = {}
-    hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
-    hparams['embedding_size'] = 512
-    hparams['max_sentence_length'] = 80
-    hparams['basic_lstm_cells'] = 512
-    hparams['fftsize'] = 2048
-    hparams['hops'] = 2048 // 8
-    hparams['frequency_bins'] = 256
-    hparams['prenet_cells'] = 128
-    hparams['max_output_length'] = 125
-    hparams['max_gradient_norm'] = 5
-    hparams['learning_rate'] = 1e-4
-    hparams['batch_size'] = 64
-    hparams['number_conv_layers_encoder'] = 3
-    hparams['number_conv_layers_postnet'] = 5
-    hparams['is_Training'] = True
-    hparams['scale_factor'] = 1000
-    hparams['attention_cells'] = 128
-else:
-    # BATCH PARAMS
-    hparams = {}
-    hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
-    hparams['embedding_size'] = 512
-    hparams['max_sentence_length'] = 50
-    hparams['basic_lstm_cells'] = 512
-    hparams['prenet_cells'] = 128
-    hparams['fftsize'] = 2048
-    hparams['hops'] = 2048 // 8
-    hparams['frequency_bins'] = 256
-    hparams['max_output_length'] = 200
-    hparams['learning_rate'] = 10e-3
-    hparams['batch_size'] = 16
-    hparams['number_conv_layers_encoder'] = 3
-    hparams['number_conv_layers_postnet'] = 5
-    hparams['is_Training'] = True
-    hparams['scale_factor'] = 1000
-    hparams['attention_cells'] = 128
-
-
-
-improved_tacotron_2_model = TTS(hparams, mode)
-
-if test is False:
+if hparameters.test is False:
     # First check if dataset is available, otherwise cancel
     assert os.path.exists(local_paths.DATASET_PATH + "prompts.data"), "Missing text dataset!"
     assert os.path.exists(local_paths.DATASET_PATH + "wavn"), "Missing audio dataset!"
     # Check if it has already been processedf
     if not os.path.exists(local_paths.DATASET_PATH + "sequence_0.npy") or \
             not os.path.exists(local_paths.DATASET_PATH + "spectogram_0.npy") or \
-            np.shape(np.load(local_paths.DATASET_PATH + "sequence_0.npy"))[1] != hparams['max_sentence_length'] or \
-            np.shape(np.load(local_paths.DATASET_PATH + "spectogram_0.npy"))[1:3] != (hparams['max_output_length'], hparams['frequency_bins']):
+            np.shape(np.load(local_paths.DATASET_PATH + "sequence_0.npy"))[1] != hparameters['max_sentence_length'] or \
+            np.shape(np.load(local_paths.DATASET_PATH + "spectogram_0.npy"))[1:3] != (hparameters['max_output_length'], hparameters['frequency_bins']):
         # process the data
-        tacotron.utils.process_data(local_paths.DATASET_PATH, hparams, databatch_size)
+        tacotron.utils.process_data(local_paths.DATASET_PATH, hparameters, hparameters['databatch_size'])
     # Load dataset
     training_sequences, training_spectograms = tacotron.utils.load_dataset(local_paths.DATASET_PATH, 0)
 

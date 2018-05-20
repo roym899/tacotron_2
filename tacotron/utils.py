@@ -85,27 +85,5 @@ def load_dataset(dataset_path, id):
 
   return sequence, spectogram
 
-  # sequence_placeholder = tf.placeholder(sequence.dtype, sequence.shape)
-  # spectogram_placeholder = tf.placeholder(spectogram.dtype, spectogram.shape)
-  #
-  # dataset = tf.data.Dataset.from_tensor_slices((sequence_placeholder, spectogram_placeholder))
-  #
-  # iterator = dataset.make_initializable_iterator()
-  #
-  # with tf.Session as sess:
-  #   sess.run(iterator.initializer, feed_dict={sequence_placeholder: sequence,
-  #                                           spectogram_placeholder: spectogram})
-  #
-  # dataset1 = tf.data.Dataset.from_sparse_tensor_slices(sequence)
-  # dataset2 = tf.data.Dataset.from_sparse_tensor_slices(spectogram)
-  # dataset = tf.data.Dataset.zip((dataset1, dataset2))
-  # batched_dataset = dataset.batch(4)
-  # iterator = batched_dataset.make_one_shot_iterator()
-  # next_element = iterator.get_next()
-  #
-  # with tf.Session as sess:
-  #   print(sess.run(next_element))  # ==> ([0, 1, 2,   3],   [ 0, -1,  -2,  -3])
-  #   print(sess.run(next_element))  # ==> ([4, 5, 6,   7],   [-4, -5,  -6,  -7])
-  #   print(sess.run(next_element))  # ==> ([8, 9, 10, 11],   [-8, -9, -10, -11])
 
 

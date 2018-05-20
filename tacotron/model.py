@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 import matplotlib
 import local_paths
 from enum import IntFlag
+from tacotron.attention import LocationSensitiveAttention
+from tacotron.CustomAttentionWrapper import TacotronDecoderCell
+from tacotron.modules import Prenet
 
 import random
 
@@ -126,16 +129,6 @@ class TTS(object):
             else:
                 decoder_initial_state = encoder_state_output
 
-        if mode & TTS_Mode.ATTENTION:
-            attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(hparams['attention_cells'],
-                                                                       self.encoder_outputs,
-                                                                       memory_sequence_length=tf.fill([batch_size],hparams['max_sentence_length']))
-            decoder_cell = tf.contrib.seq2seq.AttentionWrapper(decoder_cell,
-                                                              attention_mechanism,
-                                                              attention_layer_size = hparams['attention_cells'])
-            zerostate = decoder_cell.zero_state(dtype=tf.float32,batch_size=batch_size)
-            decoder_initial_state = zerostate.clone(cell_state=decoder_initial_state)
-
         if mode & TTS_Mode.PRENET:
             pre = []
             pre.append(tf.layers.Dense(hparams['prenet_cells'], use_bias=False, activation=tf.nn.relu))
@@ -157,8 +150,48 @@ class TTS(object):
                                                 self.hparams['frequency_bins'],
                                                 hparams['max_output_length'])
 
+        if mode & TTS_Mode.ATTENTION:
+            attention_mechanism = tacotron.attention.LocationSensitiveAttention(hparams, hparams['attention_dim'],
+                                           tf.concat(self.encoder_outputs,axis=2),mask_encoder=hparams['mask_encoder'],
+                                            memory_sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
+                                            smoothing=hparams['smoothing'],cumulate_weights=hparams['cumulative_weights'])
 
+            prenet = Prenet(self.is_training, layer_sizes=[hparams['prenet_cells'],hparams['prenet_cells']])
+            decoder_cell = tacotron.CustomAttentionWrapper.TacotronDecoderCell(prenet,
+                                                                               attention_mechanism,
+                                                                               decoder_cell,
+                                                                               projection_layer)
 
+            decoder_initial_state = decoder_cell.zero_state(batch_size=batch_size, dtype=tf.float32)
+
+            training_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
+                                                               training_helper,
+                                                               decoder_initial_state,
+                                                               output_layer=None)
+
+            inference_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
+                                                                inference_helper,
+                                                                decoder_initial_state,
+                                                                output_layer=None)
+            # attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(hparams['attention_cells'],
+            #                                                            self.encoder_outputs,
+            #                                                            memory_sequence_length=tf.fill([batch_size],hparams['max_sentence_length']))
+            # decoder_cell = tf.contrib.seq2seq.AttentionWrapper(decoder_cell,
+            #                                                   attention_mechanism,
+            #                                                   attention_layer_size = hparams['attention_cells'])
+            # zerostate = decoder_cell.zero_state(dtype=tf.float32,batch_size=batch_size)
+            # decoder_initial_state = zerostate.clone(cell_state=decoder_initial_state)
+
+        else:
+            training_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
+                                                               training_helper,
+                                                               decoder_initial_state,
+                                                               output_layer=projection_layer)
+
+            inference_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
+                                                                inference_helper,
+                                                                decoder_initial_state,
+                                                                output_layer=projection_layer)
         # helper = tf.cond(self.is_training,
         #                  lambda: tf.contrib.seq2seq.TrainingHelper(self.target_spectograms,
         #                                                            [hparams['max_output_length']],
@@ -166,23 +199,14 @@ class TTS(object):
         #                  lambda: RegressionHelper(batch_size, hparams['frequency_bins'],
         #                                           hparams['max_output_length']))
 
-        training_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
-                                                           training_helper,
-                                                           decoder_initial_state,
-                                                           output_layer=projection_layer)
-
-        inference_decoder = tf.contrib.seq2seq.BasicDecoder(decoder_cell,
-                                                            inference_helper,
-                                                            decoder_initial_state,
-                                                            output_layer=projection_layer)
-
         # Dynamic decoding
         self.inference_outputs = tf.contrib.seq2seq.dynamic_decode(inference_decoder)
         self.training_outputs = tf.contrib.seq2seq.dynamic_decode(training_decoder)
 
+        training_spectograms = tf.reshape(self.inference_outputs[0].rnn_output, [batch_size, -1, hparams['frequency_bins']])
         # Optimization
         inference_spectograms = self.inference_outputs[0].rnn_output
-        training_spectograms = self.training_outputs[0].rnn_output
+        # training_spectograms = self.training_outputs[0].rnn_output
 
         if mode & TTS_Mode.POSTNET:
             post = []
