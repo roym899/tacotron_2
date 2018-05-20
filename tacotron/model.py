@@ -10,7 +10,6 @@ import local_paths
 import os
 from random import randint
 from enum import IntFlag
-
 import random
 
 class TTS_Mode(IntFlag):
@@ -24,8 +23,6 @@ class TTS_Mode(IntFlag):
      ALL = 63
 
 class TTS(object):
-
-
     def __init__(self, hparams, mode):
         def sample_fcn(outputs):
             return outputs
@@ -73,8 +70,11 @@ class TTS(object):
                                                                            sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
                                                                            dtype=tf.float32,
                                                                            time_major=False)
-            #   encoder_outputs: [max_time, batch_size, num_units]
+            #   encoder_outputs: [max_tiffme, batch_size, num_units]
             #   encoder_state: [batch_size, num_units]
+
+        tf.summary.histogram('encoder_state_output', encoder_state_output)
+        tf.summary.tensor_summary('encoder_outputs', self.encoder_outputs)
 
         # Build RNN cell
         # Helper
@@ -133,8 +133,8 @@ class TTS(object):
                                                                        self.encoder_outputs,
                                                                        memory_sequence_length=tf.fill([batch_size],hparams['max_sentence_length']))
             decoder_cell = tf.contrib.seq2seq.AttentionWrapper(decoder_cell,
-                                                              attention_mechanism,
-                                                              attention_layer_size = hparams['attention_cells'])
+                                                               attention_mechanism,
+                                                               attention_layer_size = hparams['attention_cells'])
             zerostate = decoder_cell.zero_state(dtype=tf.float32,batch_size=batch_size)
             decoder_initial_state = zerostate.clone(cell_state=decoder_initial_state)
 
@@ -226,7 +226,7 @@ class TTS(object):
         global_step = tf.Variable(0, trainable=False)
         starter_learning_rate = hparams['learning_rate']
         learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-                                                   1000, 0.96, staircase=True)
+                                                   100, 0.96, staircase=True)
 
         self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.train_loss, global_step=global_step)
 
@@ -265,8 +265,8 @@ class TTS(object):
 
 
     def train_test(self):
-        training_sentence = "Your father may complain how badly lid the local roads are."
-        predict_sentence = "Your father may."
+        training_sentence = ""
+        predict_sentence = "thomas"
         input = tacotron.utils.text_to_sequence(training_sentence, self.hparams['max_sentence_length'])
         predict_input = tacotron.utils.text_to_sequence(predict_sentence, self.hparams['max_sentence_length'])
         pre_res = self.session.run(self.inference_results, feed_dict={self.encoder_inputs: np.expand_dims(input,0), self.is_training:False})
@@ -276,7 +276,7 @@ class TTS(object):
 
         fftsize = 2048
         hops = 512
-        audio = wavenet.load_audio(local_paths.TEST_AUDIO, expected_samplerate=16000)
+        audio = wavenet.load_audio(local_paths.TEST_AUDIO, expected_samplerate=44100)
         training_spectogram = wavenet.calculate_stft(audio, fftsize, hops)
         training_spectogram = abs(training_spectogram) ** 2
         # training_spectogram = training_spectogram[0:self.hparams['max_output_length'],:]
@@ -286,7 +286,7 @@ class TTS(object):
         max_value = np.max(abs(rec_audio))
         if max_value > 1.0:
             rec_audio = rec_audio / max_value
-        audio = wavenet.save_audio(rec_audio, 16000, local_paths.RECONSTRUCTED_AUDIO_OUTPUT)
+        audio = wavenet.save_audio(rec_audio, 44100, local_paths.RECONSTRUCTED_AUDIO_OUTPUT)
 
         training_spectogram = training_spectogram[0:self.hparams['max_output_length'], 0:self.hparams['frequency_bins']]/self.hparams['scale_factor']
         # training_spectogram = np.log(training_spectogram)
@@ -335,7 +335,7 @@ class TTS(object):
                 if max_value > 1.0:
                     rec_audio = rec_audio / max_value
 
-                audio = wavenet.save_audio(rec_audio, 16000, local_paths.TEST_PATTERN.format(test))
+                audio = wavenet.save_audio(rec_audio, 44100, local_paths.TEST_PATTERN.format(test))
                 test += 1
             if epochs>500:
                 return
@@ -385,9 +385,9 @@ class TTS(object):
 
             if loss < next_image_loss or counter > 100:
                 self.saver.save(self.session, local_paths.CHECKPOINT_PATH, global_step=100*(test+1))
-                self.predict("Children act prematurely." , local_paths.TEST_PATTERN_CHILDREN.format(test))
-                self.predict("Your father may complain about how badly lid the local roads are." , local_paths.TEST_PATTERN_FATHER.format(test))
-                self.predict("This course is fun." , local_paths.TEST_PATTERN_COURSE.format(test))
+                self.predict("children" , local_paths.TEST_PATTERN_CHILDREN.format(test))
+                self.predict("father" , local_paths.TEST_PATTERN_FATHER.format(test))
+                self.predict("thomas" , local_paths.TEST_PATTERN_COURSE.format(test))
                 counter = 0
                 test += 1
 
@@ -405,7 +405,7 @@ class TTS(object):
         # plot the spectogram
         print("Min: {} Max: {}".format(np.min(spectogram), np.max(spectogram)))
         plt.imshow(res[0].rnn_output[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
-        plt.show()
+        plt.savefig(outpath+".png")
 
         # convert to audiofile
         rec_audio = wavenet.reconstruct_signal(spectogram, self.hparams['fftsize'], self.hparams['hops'], 100)
@@ -413,4 +413,4 @@ class TTS(object):
         if max_value > 1.0:
             rec_audio = rec_audio / max_value
 
-        audio = wavenet.save_audio(rec_audio, 16000, outpath)
+        audio = wavenet.save_audio(rec_audio, 44100, outpath)

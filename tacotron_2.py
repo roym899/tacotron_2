@@ -38,39 +38,39 @@ if test:
     hparams = {}
     hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
     hparams['embedding_size'] = 512
-    hparams['max_sentence_length'] = 120
+    hparams['max_sentence_length'] = 10
     hparams['basic_lstm_cells'] = 512
     hparams['fftsize'] = 2048
     hparams['hops'] = 2048 // 8
-    hparams['frequency_bins'] = 256
+    hparams['frequency_bins'] = 100
     hparams['prenet_cells'] = 128
-    hparams['max_output_length'] = 250
+    hparams['max_output_length'] = 100
     hparams['max_gradient_norm'] = 5
-    hparams['learning_rate'] = 1e-5
+    hparams['learning_rate'] = 1e-4
     hparams['batch_size'] = 64
     hparams['number_conv_layers_encoder'] = 3
     hparams['number_conv_layers_postnet'] = 5
     hparams['is_Training'] = True
-    hparams['scale_factor'] = 2000
+    hparams['scale_factor'] = 5000
     hparams['attention_cells'] = 128
 else:
     # BATCH PARAMS
     hparams = {}
     hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
     hparams['embedding_size'] = 512
-    hparams['max_sentence_length'] = 120
+    hparams['max_sentence_length'] = 10
     hparams['basic_lstm_cells'] = 512
     hparams['prenet_cells'] = 128
     hparams['fftsize'] = 2048
     hparams['hops'] = 2048 // 8
-    hparams['frequency_bins'] = 256
-    hparams['max_output_length'] = 250
-    hparams['learning_rate'] = 10e-3
+    hparams['frequency_bins'] = 100
+    hparams['max_output_length'] = 160
+    hparams['learning_rate'] = 1e-3
     hparams['batch_size'] = 64
     hparams['number_conv_layers_encoder'] = 3
     hparams['number_conv_layers_postnet'] = 5
     hparams['is_Training'] = True
-    hparams['scale_factor'] = 1000
+    hparams['scale_factor'] = 5000
     hparams['attention_cells'] = 128
 
 with open(local_paths.PARAMS_PATH, "w") as file:
@@ -103,5 +103,5 @@ else:
 
 # TODO: save model
 
-improved_tacotron_2_model.predict("", local_paths.PREDICT_PATH)
+# improved_tacotron_2_model.predict("", local_paths.PREDICT_PATH)
 
