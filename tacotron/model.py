@@ -7,6 +7,8 @@ from tacotron.PrenetTrainingHelper import PrenetTrainingHelper
 import matplotlib.pyplot as plt
 import matplotlib
 import local_paths
+import os
+from random import randint
 from enum import IntFlag
 from tacotron.attention import LocationSensitiveAttention
 from tacotron.CustomAttentionWrapper import TacotronDecoderCell
@@ -211,7 +213,7 @@ class TTS(object):
         if mode & TTS_Mode.POSTNET:
             post = []
             normalization = []
-            residual_projection = tf.layers.Dense(hparams['frequency_bins'], activation=tf.nn.relu)
+            residual_projection = tf.layers.Dense(hparams['frequency_bins'])
             for i in range(hparams['number_conv_layers_postnet']):
                 post.append(tf.layers.Conv1D(filters=512,kernel_size=(5,),activation=None,padding='same'))
                 normalization.append(tf.layers.BatchNormalization())
@@ -233,7 +235,7 @@ class TTS(object):
             after_spectograms = residual_training + training_spectograms
 
             # summed MSE from before and after the post-net
-            self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, after_spectograms) +\
+            self.train_loss = tf.losses.mean_squared_error(self.target_spectograms, after_spectograms)/10 +\
                               tf.losses.mean_squared_error(self.target_spectograms, training_spectograms)
 
             self.inference_results = inference_spectograms + residual_inference
@@ -251,6 +253,8 @@ class TTS(object):
                                                    1000, 0.96, staircase=True)
 
         self.optimizer = tf.train.AdamOptimizer(learning_rate).minimize(self.train_loss, global_step=global_step)
+
+        self.saver = tf.train.Saver()
 
         self.session = tf.Session()
         init = tf.global_variables_initializer()
@@ -344,7 +348,8 @@ class TTS(object):
 
                 print("Min: {}, Max: {}".format(np.min(post_res), np.max(post_res)))
                 plt.imshow(post_res[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
-                plt.show()
+                plt.savefig(local_paths.FINAL_PATH)
+                plt.close()
                 # next_image_loss = loss - 1
                 counter = 0
 
@@ -356,23 +361,36 @@ class TTS(object):
 
                 audio = wavenet.save_audio(rec_audio, 16000, local_paths.TEST_PATTERN.format(test))
                 test += 1
-            if epochs>5000:
+            if epochs>500:
                 return
 
 
 
-    def train(self, training_sequences, training_spectograms):
+    def train(self, dataset_path):
         loss = np.Inf
         next_image_loss = 0
         test = 0
-        test_sentence = training_sequences[0,:]
-        test_spectogram = training_spectograms[0,:,:]
-        plt.imshow(test_spectogram, cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
-        plt.show()
+
+        ### Determine Number of available dataset
+        directory_files = os.listdir(dataset_path)
+        number_of_files = len(directory_files)//2
+
         batch_size = self.hparams['batch_size']
         counter = 0
-        training_spectograms = training_spectograms/self.hparams['scale_factor']
         while loss>0:
+            ### Choose two random datasets and concatenate them
+            rng = np.random.choice(number_of_files,2,replace=False)
+            training_sequences,training_spectograms = tacotron.utils.load_dataset(dataset_path, rng[0])
+            training_sequences_2, training_spectograms_2 = tacotron.utils.load_dataset(dataset_path,rng[1])
+            training_sequences = np.append(training_sequences,training_sequences_2,0)
+            training_spectograms = np.append(training_spectograms,training_spectograms_2,0)
+
+            s = np.arange(training_sequences.shape[0])
+            np.random.shuffle(s)
+            training_sequences = np.copy(training_sequences[s])
+            training_spectograms = np.copy(training_spectograms[s])
+            training_spectograms = training_spectograms / self.hparams['scale_factor']
+
             data = (training_sequences, training_spectograms)
             idx = 0
             while idx+batch_size < data[0].shape[0]:
@@ -381,15 +399,19 @@ class TTS(object):
                                                         self.target_spectograms: data[1][idx:idx+batch_size,:,:],
                                                         self.is_training:True})
                 idx += batch_size
-            loss = self.session.run(self.train_loss,
-                                    feed_dict={self.encoder_inputs: training_sequences,
-                                               self.target_spectograms: training_spectograms,
-                                               self.is_training: True})
+            # loss = self.session.run(self.train_loss,
+            #                         feed_dict={self.encoder_inputs: training_sequences,
+            #                                    self.target_spectograms: training_spectograms,
+            #                                    self.is_training: True})
 
             print("Loss: {}".format(loss))
             counter += 1
-            if loss < next_image_loss or counter > 10:
-                self.predict("Acting out of panic, before considering alternatives, often leads to poor, sometimes downright disastrous, decisions." , local_paths.TEST_PATTERN.format(test))
+
+            if loss < next_image_loss or counter > 100:
+                self.saver.save(self.session, local_paths.CHECKPOINT_PATH, global_step=100*(test+1))
+                self.predict("Children act prematurely." , local_paths.TEST_PATTERN_CHILDREN.format(test))
+                self.predict("Your father may complain about how badly lid the local roads are." , local_paths.TEST_PATTERN_FATHER.format(test))
+                self.predict("This course is fun." , local_paths.TEST_PATTERN_COURSE.format(test))
                 counter = 0
                 test += 1
 
@@ -405,6 +427,7 @@ class TTS(object):
         spectogram[:,0:self.hparams['frequency_bins']] = self.hparams['scale_factor']*res[0].rnn_output[0,:,:]
 
         # plot the spectogram
+        print("Min: {} Max: {}".format(np.min(spectogram), np.max(spectogram)))
         plt.imshow(res[0].rnn_output[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
         plt.show()
 

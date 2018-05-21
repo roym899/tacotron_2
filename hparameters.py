@@ -1,7 +1,7 @@
 import tacotron.utils
 
 # activate/deactivate test mode, will skip the dataset loading
-test = True
+test = False
 
 
 if test:
@@ -38,13 +38,13 @@ else:
     hparams['databatch_size'] = 1000
     hparams['src_vocab_size'] = len(tacotron.utils.VOCAB)
     hparams['embedding_size'] = 512
-    hparams['max_sentence_length'] = 50
+    hparams['max_sentence_length'] = 120
     hparams['basic_lstm_cells'] = 512
     hparams['prenet_cells'] = 128
     hparams['fftsize'] = 2048
     hparams['hops'] = 2048 // 8
     hparams['frequency_bins'] = 256
-    hparams['max_output_length'] = 200
+    hparams['max_output_length'] = 250
     hparams['learning_rate'] = 10e-3
     hparams['batch_size'] = 16
     hparams['number_conv_layers_encoder'] = 3

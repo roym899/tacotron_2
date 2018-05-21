@@ -1,5 +1,12 @@
 TEST_AUDIO = "/home/leo/dd2424/project/dataset/APDC2-070-02.wav"
 RECONSTRUCTED_AUDIO_OUTPUT = "/home/leo/dd2424/project/dataset/test_training.wav"
+TEST_PATTERN_CHILDREN = "/home/leo/dd2424/project/dataset/test_children_{}.wav" # keep the {} since format is called on this string!
+TEST_PATTERN_FATHER = "/home/leo/dd2424/project/dataset/test_father_{}.wav" # keep the {} since format is called on this string!
+TEST_PATTERN_COURSE = "/home/leo/dd2424/project/dataset/test_course_{}.wav" # keep the {} since format is called on this string!
 TEST_PATTERN = "/home/leo/dd2424/project/dataset/test_{}.wav" # keep the {} since format is called on this string!
 DATASET_PATH = "/home/leo/dd2424/project/dataset/"
+DATASET_PATH_PROCESSED = "/home/leo/dd2424/project/dataset_processed/"
 PREDICT_PATH = "/home/leo/dd2424/project/dataset/predict.wav"
+FINAL_PATH = "/home/leo/dd2424/project/dataset/final.png"
+CHECKPOINT_PATH = "/home/leo/dd2424/project/ckpt/model.ckpt"
+PARAMS_PATH = "/home/leo/dd2424/project/dataset/params.data"
