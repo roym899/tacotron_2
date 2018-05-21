@@ -50,11 +50,12 @@ def process_data(dataset_path, hparams, max_dataset_size,processed_path):
       audio = wavenet.load_audio(os.path.join(dataset_path, 'wavn', wav_name + '.wav'), expected_samplerate=44100)
       spectogram = wavenet.calculate_stft(audio, hparams['fftsize'], hparams['hops'])
       if hparams['max_output_length'] - spectogram.shape[0] < 0:
-        skipped_output += 1
-        continue
-      spectogram = np.pad(spectogram,
-                          ((0, hparams['max_output_length'] - spectogram.shape[0]), (0, 0)),
-                          'constant')
+        spectogram = spectogram[0:hparams['max_output_length'], :]
+        # training_spectogram = np.log(training_spectogram)
+      else:
+        spectogram = np.pad(spectogram,
+                            ((0, hparams['max_output_length'] - spectogram.shape[0]), (0, 0)),
+                            'constant')
       spectogram = wavenet.calculate_mag(spectogram, hparams['frequency_bins'])
       #spectogram = np.reshape(spectogram, (1, np.prod(np.shape(spectogram))))
       target_spectogram[processed] = spectogram

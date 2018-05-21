@@ -274,8 +274,8 @@ class TTS(object):
         plt.imshow(pre_res[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
         plt.show()
 
-        fftsize = 2048
-        hops = 512
+        fftsize = self.hparams['fftsize']
+        hops = self.hparams['hops']
         audio = wavenet.load_audio(local_paths.TEST_AUDIO, expected_samplerate=44100)
         training_spectogram = wavenet.calculate_stft(audio, fftsize, hops)
         training_spectogram = abs(training_spectogram) ** 2
@@ -287,6 +287,8 @@ class TTS(object):
         if max_value > 1.0:
             rec_audio = rec_audio / max_value
         audio = wavenet.save_audio(rec_audio, 44100, local_paths.RECONSTRUCTED_AUDIO_OUTPUT)
+
+        print(training_spectogram.shape[0])
 
         training_spectogram = training_spectogram[0:self.hparams['max_output_length'], 0:self.hparams['frequency_bins']]/self.hparams['scale_factor']
         # training_spectogram = np.log(training_spectogram)
@@ -308,6 +310,7 @@ class TTS(object):
         test = 0
         epochs = 0
         merged = tf.summary.merge_all()
+        return
         with tf.Session() as sess:
             writer = tf.summary.FileWriter("/tmp",sess.graph)
 

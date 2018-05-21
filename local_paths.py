@@ -1,4 +1,4 @@
-TEST_AUDIO = "/home/leo/dd2424/project/word_dataset/wavn/father.wav"
+TEST_AUDIO = "/home/leo/dd2424/project/word_dataset/wavn/children.wav"
 RECONSTRUCTED_AUDIO_OUTPUT = "/home/leo/dd2424/project/word_dataset/test_training.wav"
 TEST_PATTERN_CHILDREN = "/home/leo/dd2424/project/word_dataset/test_children_{}.wav" # keep the {} since format is called on this string!
 TEST_PATTERN_FATHER = "/home/leo/dd2424/project/word_dataset/test_father_{}.wav" # keep the {} since format is called on this string!
