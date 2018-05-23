@@ -32,6 +32,7 @@ def process_data(dataset_path, hparams, max_dataset_size,processed_path):
     skipped_output = 0
 
     input_sequence = np.zeros(shape=(max_dataset_size, hparams['max_sentence_length']))
+    input_sequence_length = np.zeros(shape=(max_dataset_size))
     target_spectogram = np.zeros(shape=(max_dataset_size, hparams['max_output_length'], hparams['frequency_bins']))
 
     filtered_sentences = []
@@ -50,8 +51,9 @@ def process_data(dataset_path, hparams, max_dataset_size,processed_path):
       audio = wavenet.load_audio(os.path.join(dataset_path, 'wavn', wav_name + '.wav'), expected_samplerate=44100)
       spectogram = wavenet.calculate_stft(audio, hparams['fftsize'], hparams['hops'])
       if hparams['max_output_length'] - spectogram.shape[0] < 0:
-        spectogram = spectogram[0:hparams['max_output_length'], :]
-        # training_spectogram = np.log(training_spectogram)
+        skipped_output += 1
+        continue
+        # spectogram = spectogram[0:hparams['max_output_length'], :]
       else:
         spectogram = np.pad(spectogram,
                             ((0, hparams['max_output_length'] - spectogram.shape[0]), (0, 0)),
@@ -61,6 +63,7 @@ def process_data(dataset_path, hparams, max_dataset_size,processed_path):
       target_spectogram[processed] = spectogram
 
       # convert text to sequence
+      input_sequence_length[processed] = len(text)
       sequence = text_to_sequence(text, hparams['max_sentence_length'])
       input_sequence[processed] = sequence
 
@@ -73,6 +76,7 @@ def process_data(dataset_path, hparams, max_dataset_size,processed_path):
           end = num
         else:
           end = file_counter+1000
+        np.save(os.path.join(processed_path, 'sequence_length_{}.npy'.format(file_counter)), input_sequence_length)
         np.save(os.path.join(processed_path, 'sequence_{}.npy'.format(file_counter)), input_sequence)
         np.save(os.path.join(processed_path, 'spectogram_{}.npy'.format(file_counter)), target_spectogram)
 
@@ -93,11 +97,12 @@ def process_data(dataset_path, hparams, max_dataset_size,processed_path):
 def load_dataset(dataset_path, id):
   sequence = np.load(os.path.join(dataset_path, 'sequence_{}.npy'.format(id)))
   spectogram = np.load(os.path.join(dataset_path, 'spectogram_{}.npy'.format(id)))
+  sequence_length = np.load(os.path.join(dataset_path, 'sequence_length_{}.npy'.format(id)))
 
   # check the dimension
   assert sequence.shape[0] == spectogram.shape[0]
 
-  return sequence, spectogram
+  return sequence, sequence_length, spectogram
 
   # sequence_placeholder = tf.placeholder(sequence.dtype, sequence.shape)
   # spectogram_placeholder = tf.placeholder(spectogram.dtype, spectogram.shape)

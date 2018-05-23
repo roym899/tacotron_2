@@ -38,6 +38,8 @@ class TTS(object):
             self.encoder_inputs = tf.placeholder(tf.int32, [None, hparams['max_sentence_length']], 'inputs')
         self.is_training = tf.placeholder(tf.bool, [], 'is_training')
 
+        self.input_length = tf.placeholder(tf.int32, [None])
+
         batch_size = tf.shape(self.encoder_inputs)[0]
 
         # Embedding
@@ -51,29 +53,30 @@ class TTS(object):
         else:
             encoder_input = self.encoder_emb_inp
 
+
         if mode & TTS_Mode.BIDIRECTIONAL_LSTM_ENCODER:
             encoder_cell_forward = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_lstm_cells']//2)
             encoder_cell_backward = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_lstm_cells']//2)
-            self.encoder_outputs, encoder_state_output, encoder_state_output_back = tf.contrib.rnn.stack_bidirectional_dynamic_rnn(
+            self.encoder_outputs, self.encoder_state_output, self.encoder_state_output_back = tf.contrib.rnn.stack_bidirectional_dynamic_rnn(
                 [encoder_cell_forward],
                 [encoder_cell_backward],
                 encoder_input,
-                sequence_length=tf.fill([batch_size], hparams['max_sentence_length']),
+                sequence_length=self.input_length,
                 dtype=tf.float32,
                 time_major=False)
         else:
             # Build RNN cell
             encoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_lstm_cells'])
             # Run Dynamic RNN
-            self.encoder_outputs, encoder_state_output = tf.nn.dynamic_rnn(encoder_cell,
+            self.encoder_outputs, self.encoder_state_output = tf.nn.dynamic_rnn(encoder_cell,
                                                                            encoder_input,
-                                                                           sequence_length=tf.fill([batch_size],hparams['max_sentence_length']),
+                                                                           sequence_length=self.input_length,
                                                                            dtype=tf.float32,
                                                                            time_major=False)
             #   encoder_outputs: [max_tiffme, batch_size, num_units]
             #   encoder_state: [batch_size, num_units]
 
-        tf.summary.histogram('encoder_state_output', encoder_state_output)
+        tf.summary.histogram('encoder_state_output', self.encoder_state_output)
         tf.summary.tensor_summary('encoder_outputs', self.encoder_outputs)
 
         # Build RNN cell
@@ -92,20 +95,20 @@ class TTS(object):
 
             if mode & TTS_Mode.BIDIRECTIONAL_LSTM_ENCODER:
                 decoder_initial_state = list()
-                c1 = encoder_state_output[0][0]
-                c2 = encoder_state_output_back[0][0]
+                c1 = self.encoder_state_output[0][0]
+                c2 = self.encoder_state_output_back[0][0]
 
-                h1 = encoder_state_output[0][1]
-                h2 = encoder_state_output_back[0][1]
+                h1 = self.encoder_state_output[0][1]
+                h2 = self.encoder_state_output_back[0][1]
                 decoder_initial_state.append(tf.contrib.rnn.LSTMStateTuple(c1, h1))
                 decoder_initial_state.append(tf.contrib.rnn.LSTMStateTuple(c2, h2))
                 decoder_initial_state = tuple(decoder_initial_state)
             else:
                 decoder_initial_state = list()
-                c = encoder_state_output[0]
+                c = self.encoder_state_output[0]
                 c1 = c[:,0:hparams['basic_lstm_cells']//2]
                 c2 = c[:,hparams['basic_lstm_cells']//2:]
-                h = encoder_state_output[1]
+                h = self.encoder_state_output[1]
                 h1 = h[:,0:hparams['basic_lstm_cells']//2]
                 h2 = h[:,hparams['basic_lstm_cells']//2:]
                 decoder_initial_state.append(tf.contrib.rnn.LSTMStateTuple(c1, h1))
@@ -116,17 +119,17 @@ class TTS(object):
             decoder_cell = tf.nn.rnn_cell.BasicLSTMCell(hparams['basic_lstm_cells'])
             if mode & TTS_Mode.BIDIRECTIONAL_LSTM_ENCODER:
                 decoder_initial_state = list()
-                c1 = encoder_state_output[0][0]
-                c2 = encoder_state_output_back[0][0]
+                c1 = self.encoder_state_output[0][0]
+                c2 = self.encoder_state_output_back[0][0]
                 c = tf.concat([c1,c2],1)
 
-                h1 = encoder_state_output[0][1]
-                h2 = encoder_state_output_back[0][1]
+                h1 = self.encoder_state_output[0][1]
+                h2 = self.encoder_state_output_back[0][1]
                 h = tf.concat([h1,h2],1)
 
                 decoder_initial_state = tf.contrib.rnn.LSTMStateTuple(c,h)
             else:
-                decoder_initial_state = encoder_state_output
+                decoder_initial_state = self.encoder_state_output
 
         if mode & TTS_Mode.ATTENTION:
             attention_mechanism = tf.contrib.seq2seq.BahdanauAttention(hparams['attention_cells'],
@@ -265,11 +268,11 @@ class TTS(object):
 
 
     def train_test(self):
-        training_sentence = ""
+        training_sentence = "children"
         predict_sentence = "thomas"
         input = tacotron.utils.text_to_sequence(training_sentence, self.hparams['max_sentence_length'])
         predict_input = tacotron.utils.text_to_sequence(predict_sentence, self.hparams['max_sentence_length'])
-        pre_res = self.session.run(self.inference_results, feed_dict={self.encoder_inputs: np.expand_dims(input,0), self.is_training:False})
+        pre_res = self.session.run(self.inference_results, feed_dict={self.encoder_inputs: np.expand_dims(input,0), self.is_training:False, self.input_length: [len(training_sentence)]})
 
         plt.imshow(pre_res[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
         plt.show()
@@ -310,12 +313,15 @@ class TTS(object):
         test = 0
         epochs = 0
         merged = tf.summary.merge_all()
-        return
+
         with tf.Session() as sess:
             writer = tf.summary.FileWriter("/tmp",sess.graph)
 
         while loss>0:
-            summary, loss, opt = self.session.run([merged, self.train_loss, self.optimizer], feed_dict={self.encoder_inputs: np.expand_dims(training_sequence,0), self.target_spectograms: training_spectogram, self.is_training:True})
+            summary, loss, opt = self.session.run([merged, self.train_loss, self.optimizer], feed_dict={self.encoder_inputs: np.expand_dims(training_sequence,0),
+                                                                                                        self.target_spectograms: training_spectogram,
+                                                                                                        self.is_training:True,
+                                                                                                        self.input_length: [len(training_sentence)]})
             writer.add_summary(summary, epochs)
             epochs += 1
             # if epochs == 10:
@@ -323,22 +329,7 @@ class TTS(object):
             print("Loss: {}".format(loss))
             counter += 1
             if loss < next_image_loss or counter > 100:
-                post_res = self.session.run(self.inference_results, feed_dict={self.encoder_inputs: np.expand_dims(predict_input, 0), self.is_training: False})
-
-                print("Min: {}, Max: {}".format(np.min(post_res), np.max(post_res)))
-                plt.imshow(post_res[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
-                plt.savefig(local_paths.FINAL_PATH)
-                plt.close()
-                # next_image_loss = loss - 1
-                counter = 0
-
-                training_spectogram_test[:, 0:self.hparams['frequency_bins']] = post_res*self.hparams['scale_factor']
-                rec_audio = wavenet.reconstruct_signal(training_spectogram_test, fftsize, hops, 100)
-                max_value = np.max(abs(rec_audio))
-                if max_value > 1.0:
-                    rec_audio = rec_audio / max_value
-
-                audio = wavenet.save_audio(rec_audio, 44100, local_paths.TEST_PATTERN.format(test))
+                self.predict(training_sentence, local_paths.TEST_PATTERN.format(test))
                 test += 1
             if epochs>500:
                 return
@@ -352,41 +343,51 @@ class TTS(object):
 
         ### Determine Number of available dataset
         directory_files = os.listdir(dataset_path)
-        number_of_files = len(directory_files)//2
+        number_of_files = len(directory_files)//3
 
         batch_size = self.hparams['batch_size']
         counter = 0
         while loss>0:
             ### Choose two random datasets and concatenate them
             rng = np.random.choice(number_of_files,2,replace=False)
-            training_sequences,training_spectograms = tacotron.utils.load_dataset(dataset_path, rng[0])
-            training_sequences_2, training_spectograms_2 = tacotron.utils.load_dataset(dataset_path,rng[1])
+            training_sequences,training_sequences_length,training_spectograms = tacotron.utils.load_dataset(dataset_path, rng[0])
+            training_sequences_2,training_sequences_length_2, training_spectograms_2 = tacotron.utils.load_dataset(dataset_path,rng[1])
             training_sequences = np.append(training_sequences,training_sequences_2,0)
+            training_sequences_length = np.append(training_sequences_length, training_sequences_length_2,0)
             training_spectograms = np.append(training_spectograms,training_spectograms_2,0)
 
             s = np.arange(training_sequences.shape[0])
             np.random.shuffle(s)
             training_sequences = np.copy(training_sequences[s])
+            training_sequences_length = np.copy(training_sequences_length[s])
             training_spectograms = np.copy(training_spectograms[s])
             training_spectograms = training_spectograms / self.hparams['scale_factor']
 
-            data = (training_sequences, training_spectograms)
+            data = (training_sequences, training_spectograms, training_sequences_length)
             idx = 0
+            print("Min: {} Max: {}".format(np.min(training_spectograms[0,:,:]), np.max(training_spectograms[0,:,:])))
+            plt.imshow(training_spectograms[0,:,:], cmap='hot', interpolation='nearest', norm=matplotlib.colors.Normalize())
+            plt.show()
             while idx+batch_size < data[0].shape[0]:
-                loss, opt = self.session.run([self.train_loss, self.optimizer],
-                                             feed_dict={self.encoder_inputs: data[0][idx:idx+batch_size,:],
-                                                        self.target_spectograms: data[1][idx:idx+batch_size,:,:],
-                                                        self.is_training:True})
+                loop_counter = 0
+                while loop_counter<20:
+                    loss, opt = self.session.run([self.train_loss, self.optimizer],
+                                                 feed_dict={self.encoder_inputs: data[0][idx:idx+batch_size,:],
+                                                            self.target_spectograms: data[1][idx:idx+batch_size,:,:],
+                                                            self.is_training:True,
+                                                            self.input_length: data[2][idx:idx+batch_size]})
+                    loop_counter += 1
+                    print("Loss: {}".format(loss))
                 idx += batch_size
             # loss = self.session.run(self.train_loss,
             #                         feed_dict={self.encoder_inputs: training_sequences,
             #                                    self.target_spectograms: training_spectograms,
             #                                    self.is_training: True})
 
-            print("Loss: {}".format(loss))
+            print("counter: {}".format(counter))
             counter += 1
 
-            if loss < next_image_loss or counter > 100:
+            if loss < next_image_loss or counter > 1:
                 self.saver.save(self.session, local_paths.CHECKPOINT_PATH, global_step=100*(test+1))
                 self.predict("children" , local_paths.TEST_PATTERN_CHILDREN.format(test))
                 self.predict("father" , local_paths.TEST_PATTERN_FATHER.format(test))
@@ -399,7 +400,13 @@ class TTS(object):
     def predict(self, text, outpath):
         # predict the spectogram
         input = tacotron.utils.text_to_sequence(text, self.hparams['max_sentence_length'])
-        res = self.session.run(self.inference_outputs, feed_dict={self.encoder_inputs: np.expand_dims(input,0), self.is_training:False})
+        res = self.session.run([self.inference_outputs,  self.encoder_state_output], feed_dict={self.encoder_inputs: np.expand_dims(input,0),
+                                                                                                self.is_training:False,
+                                                                                                self.input_length: [len(text)]})
+
+        print(res[1])
+
+        res = res[0]
 
         # add the 0 padding to the spectogram
         spectogram = np.zeros([self.hparams['max_output_length'], self.hparams['fftsize']])
